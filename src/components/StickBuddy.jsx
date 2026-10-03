@@ -151,6 +151,64 @@ function Face({ expr }) {
 }
 
 /**
+ * Drip himself — the SVG figure, with no behaviour. Poses and moods come from
+ * classes on an ancestor (`.buddy.pose-wave`, `.expr-…`), so the same figure
+ * animates in the corner and inside the guided tour.
+ */
+export function DripFigure({ prop = 'drop', expr = 'happy', badge = null }) {
+  return (
+    <svg viewBox="0 0 64 104" width={W} height={104} aria-hidden="true">
+      <ellipse className="b-shadow" cx="32" cy="100" rx="16" ry="3" />
+      <g className="b-flip"><g className="b-all">
+        <g className="b-leg b-leg-l"><line x1="32" y1="64" x2="22" y2="94" /><line x1="22" y1="94" x2="16" y2="95" /></g>
+        <g className="b-leg b-leg-r"><line x1="32" y1="64" x2="42" y2="94" /><line x1="42" y1="94" x2="48" y2="95" /></g>
+        <g className="b-upper">
+          <line className="b-body" x1="32" y1="36" x2="32" y2="64" />
+          <g className="b-arm b-arm-l"><line x1="32" y1="42" x2="18" y2="60" /></g>
+          <g className="b-arm b-arm-r">
+            <line x1="32" y1="42" x2="46" y2="60" />
+            <Prop kind={prop} />
+          </g>
+          <g className="b-head">
+            <g className="b-head-track">
+              <circle className="b-face" cx="32" cy="24" r="11" />
+              <Face expr={expr} />
+              <path className="b-hat" d="M20 17 q12 -14 24 0 z" />
+              <rect className="b-brim" x="18" y="16" width="28" height="3" rx="1.5" />
+              <Badge kind={badge} />
+              <path className="b-sweat" d="M43.5 18 c0 0 -2 3 -2 4.4 a2 2 0 0 0 4 0 c0 -1.4 -2 -4.4 -2 -4.4z" />
+            </g>
+          </g>
+          {prop === 'juggle' && (
+            <g className="b-juggle">
+              {[0, 1, 2].map(i => <path key={i} className={'b-jdrop j' + i} d="M32 -21 c0 0 -3 4 -3 6 a3 3 0 0 0 6 0 c0 -2 -3 -6 -3 -6z" />)}
+            </g>
+          )}
+        </g>
+      </g></g>
+      <g className="b-fx">
+        <text className="b-z z1" x="44" y="12">z</text>
+        <text className="b-z z2" x="49" y="6">z</text>
+        <text className="b-z z3" x="54" y="0">Z</text>
+        <text className="b-note n1" x="42" y="22">♪</text>
+        <text className="b-note n2" x="48" y="14">♫</text>
+        <text className="b-q" x="46" y="8">?</text>
+        <text className="b-rw" x="40" y="10">⏪</text>
+        <text className="b-om" x="38" y="16">ommm</text>
+        <circle className="b-pebble" cx="50" cy="96" r="2.2" />
+        <g className="b-cloud" transform="translate(0 -9)">
+          <path d="M18 2 a5 5 0 0 1 8 -4 a6 6 0 0 1 11 1 a4.5 4.5 0 0 1 2 8.5 h-19 a3.8 3.8 0 0 1 -2 -5.5z" />
+          <line className="rd1" x1="23" y1="9" x2="22" y2="13" />
+          <line className="rd2" x1="29" y1="9" x2="28" y2="13" />
+          <line className="rd3" x1="35" y1="9" x2="34" y2="13" />
+        </g>
+        <g className="b-stars"><text x="20" y="6">✦</text><text x="38" y="2">✧</text><text x="29" y="-2">✦</text></g>
+      </g>
+    </svg>
+  );
+}
+
+/**
  * Drip — an animated stick-figure guide with opinions.
  *
  *   • Talks you through each screen, leading with whatever's wrong in the study.
@@ -191,6 +249,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   const [pose, setPoseState] = useState('idle');
   const [moodOverride, setMoodOverride] = useState(null);
   const [x, setX] = useState(null);               // null = parked at home (bottom-right)
+  const [y, setY] = useState(null);               // CSS bottom offset; null = on the floor
   const [face, setFace] = useState('left');
   const [confetti, setConfetti] = useState(null);
   const [dragging, setDragging] = useState(false);
@@ -253,7 +312,9 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     const rect = app.getBoundingClientRect();
     const scale = app.offsetWidth ? rect.width / app.offsetWidth : 1;
     const myW = rootRef.current?.offsetWidth || W;
-    return { rect, scale, width: rect.width / scale, max: rect.width / scale - myW - MARGIN };
+    const myH = rootRef.current?.offsetHeight || 104;
+    const height = rect.height / scale;
+    return { rect, scale, width: rect.width / scale, height, max: rect.width / scale - myW - MARGIN, maxY: height - myH - MARGIN };
   };
   const findTarget = (sel) => (sel ? appEl()?.querySelector(sel) : null);
   const tip = tips[idx % Math.max(1, tips.length)];
@@ -263,24 +324,33 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   const [hasTarget, setHasTarget] = useState(false);
   useEffect(() => { setHasTarget(!!findTarget(tip?.target)); });
 
-  const walkTo = useCallback((nextX, then) => {
+  // Walk (or, when the trip includes a climb, fly) to a spot. `nextX` null
+  // means home; `nextY` is a CSS bottom offset, null meaning the floor.
+  const walkTo = useCallback((nextX, then, nextY = null) => {
     const m = metrics();
     const me = rootRef.current;
     if (!m || !me) return;
-    const cur = (me.getBoundingClientRect().left - m.rect.left) / m.scale;
-    const { max } = m;
-    const dest = nextX == null ? max : Math.max(MARGIN, Math.min(max, nextX));
-    const dist = Math.abs(dest - cur);
-    if (dist < 4) { setX(nextX == null ? null : dest); then?.(); return; }
-    const running = dist > 380;
-    const ms = Math.round(Math.min(2400, Math.max(450, dist * (running ? 1.7 : 3))));
+    const r = me.getBoundingClientRect();
+    const cur = (r.left - m.rect.left) / m.scale;
+    const curY = (m.rect.bottom - r.bottom) / m.scale;
+    const floor = me.classList.contains('raised') ? 58 : 10;
+    const dest = nextX == null ? m.max : Math.max(MARGIN, Math.min(m.max, nextX));
+    const destY = nextY == null ? floor : Math.max(MARGIN, Math.min(m.maxY, nextY));
+    const dist = Math.hypot(dest - cur, destY - curY);
+    const home = () => { if (nextX == null) { setX(null); setFace('left'); } if (nextY == null) setY(null); };
+    if (dist < 4) { setX(nextX == null ? null : dest); setY(nextY == null ? null : destY); then?.(); return; }
+    const flying = Math.abs(destY - curY) > 30;
+    const running = !flying && dist > 380;
+    const ms = Math.round(Math.min(2400, Math.max(450, dist * (running || flying ? 1.7 : 3))));
     me.style.setProperty('--walk-ms', `${ms}ms`);
     setFace(dest < cur ? 'left' : 'right');
     setX(cur); // pin the current spot so the move animates
+    setY(curY);
     requestAnimationFrame(() => {
-      setPose(running ? 'run' : 'walk');
+      setPose(flying ? 'fly' : running ? 'run' : 'walk');
       setX(dest);
-      later(() => { setPose(rest); if (nextX == null) { setX(null); setFace('left'); } then?.(); }, ms);
+      setY(destY);
+      later(() => { setPose(rest); home(); then?.(); }, ms);
     });
   }, [later, rest, setPose]);
 
@@ -386,7 +456,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
       return;
     }
     const hello = () => act(pick(['wave', 'wave', 'jump', 'flip', 'spin', 'thumbs']));
-    if (x != null) walkTo(null, hello); else hello();
+    if (x != null || y != null) walkTo(null, hello); else hello();
     // study is read only on context change; live changes go through the
     // reaction effect below so he doesn't re-introduce himself per keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -532,6 +602,12 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
       if (!m) return;
       const r = el.getBoundingClientRect();
       const targetScreenX = r.left + Math.min(r.width, 260) / 2;
+      // Stand just under the target if there's room, else perch on top of it.
+      const myH = rootRef.current?.offsetHeight || 104;
+      const tBottom = (m.rect.bottom - r.bottom) / m.scale;   // CSS px from app bottom
+      const tTop = (m.rect.bottom - r.top) / m.scale;
+      const underY = tBottom - myH - 6;
+      const destY = underY > 60 ? underY : Math.min(m.maxY, tTop - 6);
       walkTo((targetScreenX - m.rect.left) / m.scale - W / 2 + 30, () => {
         const me = rootRef.current?.getBoundingClientRect();
         if (me) setFace(targetScreenX < me.left + me.width / 2 ? 'left' : 'right');
@@ -541,7 +617,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
         el.classList.add('buddy-spot');
         spotRef.current = el;
         later(clearSpot, 3300);
-      });
+      }, destY);
     }, 380);
   };
 
@@ -578,18 +654,25 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     const m = metrics();
     const me = rootRef.current;
     if (!m || !me) return;
-    drag.current = { sx: e.clientX, left: (me.getBoundingClientRect().left - m.rect.left) / m.scale, max: m.max, scale: m.scale, moved: false, lastX: e.clientX };
+    const r = me.getBoundingClientRect();
+    drag.current = {
+      sx: e.clientX, sy: e.clientY, scale: m.scale, moved: false, lastX: e.clientX,
+      left: (r.left - m.rect.left) / m.scale, max: m.max,
+      bottom: (m.rect.bottom - r.bottom) / m.scale, maxY: m.maxY,
+    };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e) => {
     const d = drag.current;
     if (!d) return;
     const dx = (e.clientX - d.sx) / d.scale;
-    if (!d.moved && Math.abs(dx) < 6) return;
+    const dy = (e.clientY - d.sy) / d.scale;
+    if (!d.moved && Math.hypot(dx, dy) < 6) return;
     if (!d.moved) { d.moved = true; setDragging(true); setPose('dangle'); setBubble(false); }
     setFace(e.clientX < d.lastX ? 'left' : e.clientX > d.lastX ? 'right' : face);
     d.lastX = e.clientX;
     setX(Math.max(MARGIN, Math.min(d.max, d.left + dx)));
+    setY(Math.max(MARGIN, Math.min(d.maxY, d.bottom - dy)));
   };
   const onPointerUp = () => {
     const d = drag.current;
@@ -618,7 +701,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     if (!bubbleRef.current && Math.random() < 0.5) say(pick(HOVER_LINES), 2200);
   };
 
-  const goHome = () => { setBubble(false); setExtra(null); if (x != null) walkTo(null); };
+  const goHome = () => { setBubble(false); setExtra(null); if (x != null || y != null) walkTo(null); };
 
   const text = extra?.say || tip?.say;
   const [typed, finishTyping, typedAll] = useTypewriter(bubble ? text : null);
@@ -636,6 +719,9 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   }, [bubble, typedAll, text]);
   const appWidth = metrics()?.width || 0;
   const onLeftHalf = x != null && x < appWidth / 2;
+  // High up the screen there's no room for the bubble above him: put it below.
+  const m0 = metrics();
+  const bubbleBelow = y != null && m0 && m0.height - y - (rootRef.current?.offsetHeight || 104) < 240;
 
   const expr = {
     sleep: 'sleepy', dizzy: 'dizzy', wake: 'surprised', land: 'surprised', whistle: 'whistle',
@@ -656,11 +742,11 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     <div
       ref={rootRef}
       className={`buddy no-print pose-${pose} face-${face} expr-${expr} prop-${prop}${x == null ? ' home' : ''}${raised}${dragging ? ' dragging' : ''}${away ? ' away' : ''}`}
-      style={x == null ? undefined : { left: x }}
+      style={x == null && y == null ? undefined : { ...(x == null ? {} : { left: x }), ...(y == null ? {} : { bottom: y }) }}
     >
       {bubble && text && (
         <div
-          className={'buddy-bubble' + (onLeftHalf ? ' from-left' : '') + (extra ? ' ' + extra.kind : '')}
+          className={'buddy-bubble' + (onLeftHalf ? ' from-left' : '') + (bubbleBelow ? ' below' : '') + (extra ? ' ' + extra.kind : '')}
           onMouseEnter={() => { hovering.current = true; }}
           onMouseLeave={() => { hovering.current = false; }}
           onFocus={() => { hovering.current = true; }}
@@ -678,7 +764,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
         </div>
       )}
       {!bubble && thought && (
-        <div className={'buddy-thought' + (onLeftHalf ? ' from-left' : '')} aria-live="polite">{thought}</div>
+        <div className={'buddy-thought' + (onLeftHalf ? ' from-left' : '') + (bubbleBelow ? ' below' : '')} aria-live="polite">{thought}</div>
       )}
       {confetti && (
         <div className="buddy-confetti" key={confetti.key} aria-hidden="true">
@@ -705,54 +791,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
         aria-label="Drip, the stick-figure guide. Click for a trick and a joke; drag to move him."
         title="Click me! (or drag me)"
       >
-        <svg viewBox="0 0 64 104" width={W} height={104} aria-hidden="true">
-          <ellipse className="b-shadow" cx="32" cy="100" rx="16" ry="3" />
-          <g className="b-flip"><g className="b-all">
-            <g className="b-leg b-leg-l"><line x1="32" y1="64" x2="22" y2="94" /><line x1="22" y1="94" x2="16" y2="95" /></g>
-            <g className="b-leg b-leg-r"><line x1="32" y1="64" x2="42" y2="94" /><line x1="42" y1="94" x2="48" y2="95" /></g>
-            <g className="b-upper">
-              <line className="b-body" x1="32" y1="36" x2="32" y2="64" />
-              <g className="b-arm b-arm-l"><line x1="32" y1="42" x2="18" y2="60" /></g>
-              <g className="b-arm b-arm-r">
-                <line x1="32" y1="42" x2="46" y2="60" />
-                <Prop kind={prop} />
-              </g>
-              <g className="b-head">
-                <g className="b-head-track">
-                  <circle className="b-face" cx="32" cy="24" r="11" />
-                  <Face expr={expr} />
-                  <path className="b-hat" d="M20 17 q12 -14 24 0 z" />
-                  <rect className="b-brim" x="18" y="16" width="28" height="3" rx="1.5" />
-                  <Badge kind={badge} />
-                  <path className="b-sweat" d="M43.5 18 c0 0 -2 3 -2 4.4 a2 2 0 0 0 4 0 c0 -1.4 -2 -4.4 -2 -4.4z" />
-                </g>
-              </g>
-              {prop === 'juggle' && (
-                <g className="b-juggle">
-                  {[0, 1, 2].map(i => <path key={i} className={'b-jdrop j' + i} d="M32 -21 c0 0 -3 4 -3 6 a3 3 0 0 0 6 0 c0 -2 -3 -6 -3 -6z" />)}
-                </g>
-              )}
-            </g>
-          </g></g>
-          <g className="b-fx">
-            <text className="b-z z1" x="44" y="12">z</text>
-            <text className="b-z z2" x="49" y="6">z</text>
-            <text className="b-z z3" x="54" y="0">Z</text>
-            <text className="b-note n1" x="42" y="22">♪</text>
-            <text className="b-note n2" x="48" y="14">♫</text>
-            <text className="b-q" x="46" y="8">?</text>
-            <text className="b-rw" x="40" y="10">⏪</text>
-            <text className="b-om" x="38" y="16">ommm</text>
-            <circle className="b-pebble" cx="50" cy="96" r="2.2" />
-            <g className="b-cloud" transform="translate(0 -9)">
-              <path d="M18 2 a5 5 0 0 1 8 -4 a6 6 0 0 1 11 1 a4.5 4.5 0 0 1 2 8.5 h-19 a3.8 3.8 0 0 1 -2 -5.5z" />
-              <line className="rd1" x1="23" y1="9" x2="22" y2="13" />
-              <line className="rd2" x1="29" y1="9" x2="28" y2="13" />
-              <line className="rd3" x1="35" y1="9" x2="34" y2="13" />
-            </g>
-            <g className="b-stars"><text x="20" y="6">✦</text><text x="38" y="2">✧</text><text x="29" y="-2">✦</text></g>
-          </g>
-        </svg>
+        <DripFigure prop={prop} expr={expr} badge={badge} />
       </button>
     </div>
     </>

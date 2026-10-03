@@ -469,6 +469,7 @@ export default function App() {
           onClose={() => setShowTour(false)}
           onStart={() => setShowNew(true)}
           onSample={() => create(makeSampleStudy())}
+          inWorkspace={!!active}
         />
       )}
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}

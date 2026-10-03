@@ -706,7 +706,7 @@
    32,98), independent of how big the figure is drawn. */
 .wrs-app.buddy-on .ws-sc { padding-bottom: 150px; }
 .wrs-app.buddy-on .dash-wrap { padding-bottom: 150px; }
-.wrs-app .buddy { position: absolute; bottom: 10px; z-index: 900; width: 64px; transition: left var(--walk-ms, 1s) linear; }
+.wrs-app .buddy { position: absolute; bottom: 10px; z-index: 900; width: 64px; transition: left var(--walk-ms, 1s) linear, bottom var(--walk-ms, 1s) cubic-bezier(.3, .1, .3, 1); }
 .wrs-app .buddy.raised { bottom: 58px; }
 .wrs-app .buddy.home { right: 14px; }
 .wrs-app .buddy.dragging { transition: none; }
@@ -1042,3 +1042,43 @@
 .wrs-app.xnarrow .buddy-bubble { width: 232px; }
 @media print { .wrs-app .buddy { display: none !important; } }
 @media (prefers-reduced-motion: reduce) { .wrs-app .buddy { transition: none !important; } .wrs-app *, .wrs-app *::before, .wrs-app *::after { animation: none !important; transition: none !important; } }
+
+/* Flying (a trip that changes height): superhero pose. */
+.wrs-app .buddy.pose-fly .b-all { transform-origin: 32px 60px; transform: rotate(14deg); animation: none; }
+.wrs-app .buddy.pose-fly .b-arm-r { transform: rotate(-104deg); }
+.wrs-app .buddy.pose-fly .b-arm-l { transform: rotate(-40deg); }
+.wrs-app .buddy.pose-fly .b-leg-l { animation: wrs-b-kick .3s ease-in-out infinite alternate; }
+.wrs-app .buddy.pose-fly .b-leg-r { transform: rotate(-20deg); }
+.wrs-app .buddy.pose-fly .b-shadow { opacity: 0; }
+.wrs-app .buddy-bubble.below { bottom: auto; top: calc(100% + 8px); }
+.wrs-app .buddy-bubble.below::after { bottom: auto; top: -7px; transform: rotate(225deg); }
+.wrs-app .buddy-thought.below { bottom: auto; top: calc(100% + 14px); }
+.wrs-app .buddy-thought.below::before, .wrs-app .buddy-thought.below::after { display: none; }
+
+/* ── Guided tour: spotlight, not blur ──────────────────────────────────── */
+.wrs-app .tour-layer { position: absolute; inset: 0; z-index: 1000; }
+.wrs-app .tour-catch { position: absolute; inset: 0; }
+.wrs-app .tour-dim { position: absolute; inset: 0; background: rgba(9, 25, 24, .55); animation: wrs-ov-in .2s ease-out; }
+.wrs-app .tour-spot {
+  position: absolute; border-radius: 12px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(9, 25, 24, .55), 0 0 0 3px var(--lime), 0 0 24px 6px rgba(143, 209, 26, .45);
+  transition: left .35s var(--ease), top .35s var(--ease), width .35s var(--ease), height .35s var(--ease);
+  animation: wrs-tour-ring 1.6s ease-in-out infinite;
+}
+@keyframes wrs-tour-ring {
+  0%, 100% { box-shadow: 0 0 0 9999px rgba(9, 25, 24, .55), 0 0 0 3px var(--lime), 0 0 24px 6px rgba(143, 209, 26, .45); }
+  50% { box-shadow: 0 0 0 9999px rgba(9, 25, 24, .55), 0 0 0 5px var(--lime), 0 0 36px 10px rgba(143, 209, 26, .3); }
+}
+.wrs-app .tour-card { position: absolute; padding: 16px 20px 16px; background: #fff; border-radius: 16px; box-shadow: 0 24px 60px rgba(9, 25, 24, .4); animation: wrs-modal-in .25s var(--ease); transition: left .35s var(--ease), top .35s var(--ease); }
+.wrs-app .tour-card.tail-up::before, .wrs-app .tour-card.tail-down::before { content: ''; position: absolute; left: calc(var(--tail-x) - 8px); width: 16px; height: 16px; background: #fff; transform: rotate(45deg); }
+.wrs-app .tour-card.tail-up::before { top: -7px; }
+.wrs-app .tour-card.tail-down::before { bottom: -7px; }
+.wrs-app .tour-card h3 { font-size: 17px; color: var(--teal); margin: 2px 0 6px; letter-spacing: -.01em; }
+.wrs-app .tour-card .tour-text { font-size: 12.5px; }
+.wrs-app .tour-host { display: flex; align-items: flex-end; gap: 10px; margin: -4px 0 8px; }
+.wrs-app .buddy.tour-buddy { position: relative; bottom: auto; right: auto; left: auto; z-index: auto; width: 48px; flex-shrink: 0; transition: none; }
+.wrs-app .buddy.tour-buddy svg { width: 48px; height: 78px; }
+.wrs-app .tour-say { position: relative; flex: 1; margin-bottom: 26px; padding: 8px 12px; background: var(--lime-pale); border: 1px solid #b7e27a; border-radius: 12px; font-size: 12px; font-style: italic; color: #3f6600; line-height: 1.45; }
+.wrs-app .tour-say::before { content: ''; position: absolute; left: -6px; bottom: 10px; width: 10px; height: 10px; background: var(--lime-pale); border-left: 1px solid #b7e27a; border-bottom: 1px solid #b7e27a; transform: rotate(45deg); }
+.wrs-app .tour-card .tour-dots { margin: 12px 0 10px; }
+@media (prefers-reduced-motion: reduce) { .wrs-app .tour-spot, .wrs-app .tour-card { transition: none !important; } }

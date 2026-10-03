@@ -120,36 +120,48 @@ export const SHORTCUTS = [
   { keys: ['Esc'], label: 'Close a dialog' },
 ];
 
-// The first-run tour. Short on purpose: five screens, each one idea.
-export const TOUR = [
-  {
-    icon: '💧',
-    title: 'Welcome to the Water Rate Study Tool',
-    body: 'Built for the Choctaw Nation Office of Water Resource Management to help public water systems set rates that cover their costs — and to explain those rates to a board.',
-    points: ['Eight guided steps from raw billing data to a board-ready report', 'Every number is calculated, checked, and traceable', 'Nothing is sent anywhere unless you export it'],
-  },
-  {
-    icon: '🧭',
-    title: 'Eight steps, one direction',
-    body: 'Work left to right across the step bar. Each step shows a ✓ once it has data and a red ! if something needs fixing. Every step has a guide you can open at the top of the page.',
-    points: ['Steps 1–3: enter what the system has', 'Steps 4–6: see whether the proposal works', 'Steps 7–8: write it up and publish'],
-  },
-  {
-    icon: '🎯',
-    title: 'Let the tool do the math',
-    body: 'You don\'t have to guess at rates. The Rate Design Assistant solves for the exact increase that reaches a target budget coverage ratio or loan covenant, and applies it in one click.',
-    points: ['Solve for a target coverage ratio or DSCR', 'Phase a large increase over several years', 'Quote any customer\'s bill at any usage'],
-  },
-  {
-    icon: '🛡️',
-    title: 'A second pair of eyes',
-    body: 'The Data Check reviews every study for the mistakes that reach board packets — an annual income in a monthly field, rates with no customers, a fund balance that goes negative.',
-    points: ['Findings name the step that fixes them', 'Nothing blocks you; everything is visible', 'Undo any change with Ctrl+Z'],
-  },
-  {
-    icon: '🚀',
-    title: 'Ready when you are',
-    body: 'Start a new study, open the sample to explore with real-looking numbers, or begin from a water system on the map.',
-    points: ['The sample study shows a complete, healthy result', 'Drip, the stick-figure guide, walks you to the next thing to do — toggle him in the header', 'Press ? anytime for keyboard shortcuts; reopen this tour from the Guide button'],
-  },
+// The guided tour. Each stop spotlights a real part of the screen (`target`
+// is a CSS selector inside the app); a stop whose target isn't on screen is
+// skipped, and one with no target is centered. Drip hosts every stop: `drip`
+// is his aside and `pose` what he does while saying it.
+export const TOUR_DASHBOARD = [
+  { title: 'Welcome to the Water Rate Study Tool', pose: 'wave',
+    body: 'Help public water systems set rates that cover their true cost of service — and explain them to a board. This quick tour points at the real controls; click Next or use the arrow keys.',
+    drip: "Hi! I'm Drip. I'll be your tour guide. Please keep your hands and feet inside the spreadsheet." },
+  { target: '.hero-actions', title: 'Start here', pose: 'point',
+    body: 'Create a blank study, load the sample (a complete, realistic study with every feature filled in), or reopen this tour later.',
+    drip: 'First time? The sample is the fastest way to see everything.' },
+  { target: '.start-grid, .kpi-row', title: 'Your caseload at a glance', pose: 'point',
+    body: 'With no studies yet these cards get you started — including starting from a known system on the map. Once you have studies, this row shows how many are in progress, healthy, or need attention.',
+    drip: 'Orange tiles mean a human should look. You are the human.' },
+  { target: '.dash-toolbar', title: 'Find any study', pose: 'think',
+    body: 'Switch between the study cards and the map of Choctaw Nation water systems. Search by name, system, PWS ID or county; filter by status; sort by what needs work.',
+    drip: 'I tried searching by vibes once. Zero results.' },
+  { target: '.sb', title: 'Every study, always one click away', pose: 'point',
+    body: 'The sidebar lists every study in this browser. Import and export .json backups at the bottom — a study lives only in this browser until you export it.',
+    drip: 'Back up often. Future you will send a thank-you card.' },
+  { target: '.hdr-tools', title: 'Help is always up here', pose: 'thumbs',
+    body: 'Guide reopens this tour. The 🕺 button turns me on or off (or press B). ⌨ lists keyboard shortcuts, and the text-size menu makes everything bigger.',
+    drip: "That's my on/off switch. Please be gentle with it." },
+  { title: 'Inside a study: eight steps', pose: 'celebrate',
+    body: 'System → Rates → Budget → Scorecard → Projection → Scenarios → Analysis → Report. Each step has a coaching panel at the top, Step 4 can solve for the rates for you, and Ctrl+Z undoes anything. Open the tour again from inside a study for a tour of the workspace.',
+    drip: "That's the tour! I'll be down here if you need me — drag me anywhere." },
+];
+
+export const TOUR_WORKSPACE = [
+  { target: '.stepper', title: 'Eight steps, one direction', pose: 'point',
+    body: 'Click any step, or press Alt+← / Alt+→. A ✓ means the step has data; a red ! means something on it needs fixing. The chip on the right opens the Data Check.',
+    drip: 'Left to right, like reading. Or like water flowing downhill.' },
+  { target: '.step-guide', title: 'A coach on every step', pose: 'point',
+    body: "What you'll need, tips, and the mistake people most often make on this step. Collapse it once you know the ropes — the tool remembers.",
+    drip: 'Read the "Watch out for" box. It\'s where the bodies are buried. Figuratively.' },
+  { target: '.ws-actions', title: 'Study actions', pose: 'think',
+    body: "Undo and redo, the backup reminder, the study's status, and the ⋯ menu: duplicate the study, start next year's study, export, or delete.",
+    drip: "Duplicate before trying something wild. It's free." },
+  { target: '.ws-nv', title: 'Step by step', pose: 'point',
+    body: 'Previous and Next walk the steps in order. Step 4 (Scorecard) has the Rate Design Assistant, which solves for the exact rate change that hits your target.',
+    drip: 'Step 4 does algebra so you don\'t have to. My favorite.' },
+  { title: "You're set", pose: 'celebrate',
+    body: 'Fill in steps 1–3, check the scorecard in step 4, and export the board report from step 8. The Data Check tells you exactly what still needs attention.',
+    drip: "Go get 'em. I'll be around — click me for tips, drag me anywhere." },
 ];

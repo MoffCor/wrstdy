@@ -95,7 +95,9 @@ packaging, adding it to an app).
 - **Undo / redo** for every edit (Ctrl+Z / Ctrl+Shift+Z), per study.
 - **Duplicate a study** to model an alternative, and **Start next year's study**
   (this year's proposed rates and budget become next year's current).
-- **Guided onboarding** — a five-screen welcome tour, a collapsible coaching
+- **Guided onboarding** — a spotlight tour hosted by Drip that highlights the
+  real controls it describes (dashboard tour, or a workspace tour when opened
+  inside a study), a collapsible coaching
   panel on every step (what you'll need, tips, the common pitfall), a visual
   stepper that flags the step with a data problem, and a keyboard-shortcut
   sheet (press `?`).
@@ -104,7 +106,8 @@ packaging, adding it to an app).
   the numbers change (cheers a fix, celebrates a healthy ratio, sweats when the
   system goes underwater), carries a different prop on each step, follows the
   pointer with his eyes, naps when you wander off, and tells terrible water
-  jokes when clicked. Drag him anywhere along the bottom. Toggle him from the
+  jokes when clicked. Drag him anywhere on the screen; "Show me" flies him up
+  to the control he's talking about. Toggle him from the
   header or with the `B` key; he walks out through a door at the side of the
   app when you turn him off (and back in when you turn him on), takes the
   occasional coffee run, rewinds on undo, throws a paper airplane on export,

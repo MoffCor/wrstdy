@@ -97,12 +97,19 @@ console.log('\nStandalone build');
   check('mounts into the scoped .wrs-app wrapper', true, true);
 
   // First run opens the welcome tour; it must be skippable and stay skipped.
-  await page.waitForSelector('.modal.tour', { timeout: 5000 });
-  check('first run shows the welcome tour', await page.locator('.modal.tour').count(), 1);
+  await page.waitForSelector('.tour-card', { timeout: 5000 });
+  check('first run shows the welcome tour', await page.locator('.tour-card').count(), 1);
+  check('the tour is hosted by Drip', await page.locator('.tour-card .tour-buddy svg').count(), 1);
   await page.getByRole('button', { name: 'Next →' }).click();
   check('tour advances', await page.locator('.tour-dot.on').count(), 1);
+  // Stop 2 spotlights the real "New rate study" buttons, unblurred.
+  await page.waitForTimeout(600);
+  const spot = await page.locator('.tour-spot').boundingBox();
+  const target = await page.locator('.hero-actions').boundingBox();
+  check('tour spotlights the control it describes',
+    !!spot && spot.x <= target.x && spot.y <= target.y && spot.x + spot.width >= target.x + target.width, true);
   await page.getByRole('button', { name: 'Skip tour' }).click();
-  check('tour closes on skip', await page.locator('.modal.tour').count(), 0);
+  check('tour closes on skip', await page.locator('.tour-card').count(), 0);
 
   // Drip, the guide, is on by default and must be dismissable from the keyboard.
   check('Drip is on the dashboard', await page.locator('.buddy').count(), 1);
@@ -197,11 +204,12 @@ console.log('\nStandalone build');
   const b0 = await fig.boundingBox();
   await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2);
   await page.mouse.down();
-  for (let i = 1; i <= 10; i++) await page.mouse.move(b0.x + b0.width / 2 - i * 20, b0.y + b0.height / 2);
+  for (let i = 1; i <= 10; i++) await page.mouse.move(b0.x + b0.width / 2 - i * 20, b0.y + b0.height / 2 - i * 15);
   await page.mouse.up();
   await page.waitForTimeout(150);
   const b1 = await fig.boundingBox();
   check('Drip follows a drag 1:1 at the default zoom', Math.round(b0.x - b1.x), d => Math.abs(d - 200) < 12);
+  check('Drip can be dragged up the screen too', Math.round(b0.y - b1.y), d => Math.abs(d - 150) < 12);
 
   await page.getByRole('tab', { name: /5-Year Projection/ }).click();
   await page.waitForTimeout(300);
