@@ -21,6 +21,7 @@ import { ShortcutsModal } from './components/StepGuide.jsx';
 import { StickBuddy } from './components/StickBuddy.jsx';
 import { keyEventIsOurs, isTypingTarget } from './components/keys.js';
 import { BUDDY_SETTING } from './lib/buddy.js';
+import { TOUR_STEPS } from './lib/guide.js';
 import { buddyEvent } from './lib/buddyBus.js';
 
 // Writes are batched: a keystroke in a budget field would otherwise mean a
@@ -57,6 +58,7 @@ export default function App() {
   // visit); the Guide button still opens it.
   const [showTour, setShowTour] = useState(() => can('localPersistence') && !singleStudyHost && !hasSeenTour());
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [tourStops, setTourStops] = useState(null); // a step's mini tour, or null for the main tour
   // Drip, the stick-figure guide. On by default in the standalone app; off by
   // default inside a canvas app (either mode), where the screen belongs to the
   // host app.
@@ -448,6 +450,7 @@ export default function App() {
                 canRedo={historyFor(active.id).redo.length > 0}
                 onShowShortcuts={() => setShowShortcuts(true)}
                 onStepChange={setStep}
+                onTourStep={(n) => { setTourStops(TOUR_STEPS[n] || null); setShowTour(true); }}
               />
             : singleStudyHost
               ? <NoStudyBound onCreate={() => create(newStudy())} />
@@ -466,7 +469,9 @@ export default function App() {
       {showNew && <NewStudyModal onClose={() => setShowNew(false)} onCreate={create} />}
       {showTour && (
         <WelcomeTour
-          onClose={() => setShowTour(false)}
+          onClose={() => { setShowTour(false); setTourStops(null); }}
+          stops={tourStops}
+          onFinish={(completed) => { if (completed) buddyEvent('tourDone'); }}
           onStart={() => setShowNew(true)}
           onSample={() => create(makeSampleStudy())}
           inWorkspace={!!active}

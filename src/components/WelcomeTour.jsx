@@ -21,7 +21,7 @@ const CARD_W = 380;
  * being described. Stops whose target isn't on screen are skipped. Inside a
  * study it tours the workspace instead of the dashboard.
  */
-export function WelcomeTour({ onClose, onStart, onSample, inWorkspace = false }) {
+export function WelcomeTour({ onClose, onStart, onSample, inWorkspace = false, stops: stopsOverride = null, onFinish }) {
   const rootRef = useRef(null);
   const nextRef = useRef(null);
   const [stops, setStops] = useState([]);
@@ -31,15 +31,25 @@ export function WelcomeTour({ onClose, onStart, onSample, inWorkspace = false })
   const badge = seasonal().badge;
 
   const appEl = () => rootRef.current?.closest('.wrs-app');
-  const find = (sel) => (sel ? appEl()?.querySelector(sel) : null);
+  // `sh:Heading` targets the card whose section heading starts with that text.
+  const find = (sel) => {
+    const a = appEl();
+    if (!sel || !a) return null;
+    if (sel.startsWith('sh:')) {
+      const want = sel.slice(3).toLowerCase();
+      const h = [...a.querySelectorAll('.ws-sc .sh')].find(e => e.textContent.trim().toLowerCase().startsWith(want));
+      return h ? (h.closest('.card') || h) : null;
+    }
+    return a.querySelector(sel);
+  };
 
   // Only keep stops whose target exists right now (plus untargeted ones).
   useLayoutEffect(() => {
-    const all = inWorkspace ? TOUR_WORKSPACE : TOUR_DASHBOARD;
+    const all = stopsOverride || (inWorkspace ? TOUR_WORKSPACE : TOUR_DASHBOARD);
     setStops(all.filter(s => !s.target || find(s.target)));
     setI(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inWorkspace]);
+  }, [inWorkspace, stopsOverride]);
 
   const stop = stops[i];
   const last = i === stops.length - 1;
@@ -50,7 +60,7 @@ export function WelcomeTour({ onClose, onStart, onSample, inWorkspace = false })
     const a = appEl();
     if (!a || !stop) return undefined;
     const el = find(stop.target);
-    el?.scrollIntoView?.({ block: 'nearest' });
+    el?.scrollIntoView?.({ block: el.offsetHeight > 400 ? 'start' : 'center' });
     const measure = () => {
       const ar = a.getBoundingClientRect();
       const scale = a.offsetWidth ? ar.width / a.offsetWidth : 1;
@@ -77,7 +87,8 @@ export function WelcomeTour({ onClose, onStart, onSample, inWorkspace = false })
   useEffect(() => { nextRef.current?.focus(); }, [i, stops.length]);
 
   const finish = (after) => {
-    setSetting(TOUR_SEEN_KEY, '1');
+    if (!stopsOverride) setSetting(TOUR_SEEN_KEY, '1');
+    if (after !== undefined || last) onFinish?.(last);
     onClose?.();
     after?.();
   };
@@ -132,6 +143,7 @@ export function WelcomeTour({ onClose, onStart, onSample, inWorkspace = false })
           </div>
           <div className="tour-say">{stop.drip}</div>
         </div>
+        <div className="tour-progress" aria-hidden="true"><div style={{ width: `${((i + 1) / stops.length) * 100}%` }} /></div>
         <div className="tour-step-count">Stop {i + 1} of {stops.length}</div>
         <h3 id="tour-title">{stop.title}</h3>
         <p className="tour-text">{stop.body}</p>
@@ -152,8 +164,8 @@ export function WelcomeTour({ onClose, onStart, onSample, inWorkspace = false })
           <div style={{ display: 'flex', gap: 8 }}>
             {i > 0 && <button className="btn b-out btn-sm" onClick={() => go(i - 1)}>← Back</button>}
             {!last && <button ref={nextRef} className="btn b-teal btn-sm" onClick={() => go(i + 1)}>Next →</button>}
-            {last && !inWorkspace && onSample && <button className="btn b-out btn-sm" onClick={() => finish(onSample)}>Explore the sample</button>}
-            {last && <button ref={nextRef} className="btn b-lime btn-sm" onClick={() => finish(inWorkspace ? null : onStart)}>{inWorkspace || !onStart ? 'Done' : 'Start a study'}</button>}
+            {last && !inWorkspace && !stopsOverride && onSample && <button className="btn b-out btn-sm" onClick={() => finish(onSample)}>Explore the sample</button>}
+            {last && <button ref={nextRef} className="btn b-lime btn-sm" onClick={() => finish(inWorkspace || stopsOverride ? null : onStart)}>{inWorkspace || stopsOverride || !onStart ? 'Done' : 'Start a study'}</button>}
           </div>
         </div>
       </div>

@@ -149,6 +149,7 @@ export const BUDDY_EVENTS = {
   created: { pose: 'jump', mood: 'excited', lines: ['A fresh study! Smells like new spreadsheets.', 'New study, who dis? Let\'s start with Step 1.'] },
   duplicated: { pose: 'thumbs', mood: 'happy', lines: ['Twins! Change this copy as much as you like — the original is safe.', 'Copy made. Go wild; the original won\'t know.'] },
   rolled: { pose: 'celebrate', mood: 'excited', lines: ['Happy new rate year! 🎆 Last year\'s proposed rates are now current.', 'A whole year, just like that. Replace the opening balance with the audited figure in Step 5.'] },
+  tourDone: { pose: 'celebrate', mood: 'excited', lines: ['Tour complete. There\'s no certificate, but I believe in you.', 'That\'s the tour. I\'ll be around if you need me.', 'Done. You now know more than most of the people at the meeting.'] },
   deleted: { pose: 'sad', mood: 'sad', lines: ['Goodbye, study. You were a good one. 😢', 'Gone. I\'ll hold a tiny moment of silence. …Okay, done.'] },
 };
 
@@ -171,6 +172,12 @@ export function seasonal(now = new Date()) {
   if (m === 6) return { badge: 'sun', line: 'Summer peak demand! Sprinklers everywhere. Tier 3 is having a great month.' };
   return { badge: null, line: null };
 }
+
+// Dry asides for getting around. Said now and then, never every time.
+export const LADDER_LINES = ['Ladder. Expensed under "equipment, misc."', 'OSHA would like a word.', 'Three points of contact. I have four lines. We\'re fine.'];
+export const BALLOON_LINES = ['Helium is not in the budget.', 'This is a normal way to travel.', 'Do not let go of the string. — me, to me'];
+export const UMBRELLA_LINES = ['Mary Poppins was a consultant too.', 'Controlled descent.', 'It\'s not raining. It\'s strategy.'];
+export const FLY_LINES = ['Please don\'t tell facilities.', 'I don\'t know how I do this either.'];
 
 export const DRAG_LINES = ['Wheee!', 'Put me down! …Okay, this is fun.', 'I\'m flying! Sort of. Mostly dangling.', 'Easy! I\'m load-bearing.'];
 export const DIZZY_LINES = ['Okay okay, the room is spinning…', 'I see three of you. All very productive.', 'Stop! My lines are tangled!'];

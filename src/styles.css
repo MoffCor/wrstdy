@@ -1082,3 +1082,46 @@
 .wrs-app .tour-say::before { content: ''; position: absolute; left: -6px; bottom: 10px; width: 10px; height: 10px; background: var(--lime-pale); border-left: 1px solid #b7e27a; border-bottom: 1px solid #b7e27a; transform: rotate(45deg); }
 .wrs-app .tour-card .tour-dots { margin: 12px 0 10px; }
 @media (prefers-reduced-motion: reduce) { .wrs-app .tour-spot, .wrs-app .tour-card { transition: none !important; } }
+
+/* ── Getting around: ladder, balloon, umbrella ─────────────────────────── */
+.wrs-app .buddy-ladder {
+  position: absolute; width: 34px; z-index: 898; pointer-events: none;
+  border-left: 4px solid #a16207; border-right: 4px solid #a16207; border-radius: 3px;
+  background: repeating-linear-gradient(to top, transparent 0 10px, #ca8a04 10px 14px, transparent 14px 18px);
+  box-shadow: 2px 2px 6px rgba(16, 48, 46, .2);
+  transform-origin: bottom; animation: wrs-ladder-up .45s var(--ease) both;
+}
+.wrs-app .buddy-ladder.ladder-fold { animation: wrs-ladder-fold .45s ease-in forwards; }
+@keyframes wrs-ladder-up { from { transform: scaleY(0) rotate(-12deg); opacity: 0; } 60% { opacity: 1; } to { transform: none; opacity: 1; } }
+@keyframes wrs-ladder-fold { to { transform: scaleY(0) rotate(10deg); opacity: 0; } }
+
+.wrs-app .buddy.pose-climb, .wrs-app .buddy.pose-balloon, .wrs-app .buddy.pose-umbrella { transition: left var(--walk-ms, 1s) linear, bottom var(--walk-ms, 1s) linear; }
+.wrs-app .buddy.pose-climb .b-arm-r { animation: wrs-b-climb-r .5s ease-in-out infinite alternate; }
+.wrs-app .buddy.pose-climb .b-arm-l { animation: wrs-b-climb-l .5s ease-in-out infinite alternate; }
+.wrs-app .buddy.pose-climb .b-leg-l { animation: wrs-b-climb-leg .5s ease-in-out infinite alternate; }
+.wrs-app .buddy.pose-climb .b-leg-r { animation: wrs-b-climb-leg .5s ease-in-out infinite alternate-reverse; }
+.wrs-app .buddy.pose-climb .b-shadow { opacity: 0; }
+.wrs-app .buddy.pose-climb .b-prop { opacity: 0; }
+@keyframes wrs-b-climb-r { from { transform: rotate(-100deg); } to { transform: rotate(-60deg); } }
+@keyframes wrs-b-climb-l { from { transform: rotate(60deg); } to { transform: rotate(100deg); } }
+@keyframes wrs-b-climb-leg { from { transform: rotate(-30deg) translateY(-3px); } to { transform: rotate(10deg); } }
+
+.wrs-app .buddy .b-balloon, .wrs-app .buddy .b-umbrella { display: none; }
+.wrs-app .buddy.pose-balloon .b-balloon, .wrs-app .buddy.pose-umbrella .b-umbrella { display: inline; }
+.wrs-app .buddy.pose-balloon .b-prop, .wrs-app .buddy.pose-umbrella .b-prop { opacity: 0; }
+.wrs-app .buddy .b-string { fill: none; stroke: #475569 !important; stroke-width: 1 !important; }
+.wrs-app .buddy .b-balloon-body { fill: #ef4444; stroke: #991b1b; stroke-width: 1; }
+.wrs-app .buddy .b-canopy { fill: #0ea5e9; stroke: #0369a1; stroke-width: 1; }
+.wrs-app .buddy.pose-balloon .b-arm-r, .wrs-app .buddy.pose-umbrella .b-arm-r { transform: rotate(-70deg); }
+.wrs-app .buddy.pose-balloon .b-all, .wrs-app .buddy.pose-umbrella .b-all { transform-origin: 32px 20px; animation: wrs-b-dangle .9s ease-in-out infinite alternate; }
+.wrs-app .buddy.pose-balloon .b-leg-l, .wrs-app .buddy.pose-umbrella .b-leg-l { transform: rotate(14deg); }
+.wrs-app .buddy.pose-balloon .b-leg-r, .wrs-app .buddy.pose-umbrella .b-leg-r { transform: rotate(-8deg); }
+.wrs-app .buddy.pose-balloon .b-shadow, .wrs-app .buddy.pose-umbrella .b-shadow { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .wrs-app .buddy-ladder { animation: none !important; } }
+
+.wrs-app .step-guide { position: relative; }
+.wrs-app .step-guide-tour { position: absolute; top: 14px; right: 110px; border: 1px solid #b7e27a; background: #fff; color: var(--lime-dim); font: inherit; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; cursor: pointer; transition: background .15s; }
+.wrs-app .step-guide-tour:hover { background: var(--lime-pale); }
+.wrs-app.xnarrow .step-guide-tour { position: static; margin: 0 16px 10px; }
+.wrs-app .tour-progress { height: 3px; border-radius: 3px; background: #e5ecec; overflow: hidden; margin-bottom: 8px; }
+.wrs-app .tour-progress > div { height: 100%; background: var(--grad-lime); transition: width .35s var(--ease); }
