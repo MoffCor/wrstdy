@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { defaultClasses, defaultTiers, defBudget } from '../lib/state.js';
 import {
-  nv, classMonthlyIncome, totalRevenue, fmt, calcBill, calcHML, budgetTotal,
+  nv, classMonthlyIncome, totalRevenue, fmt, calcBill, calcHML, budgetTotal, splitImportRow,
   hasUsageDistribution, classCustomers, classGallons, usageBrackets,
   normalizeTiers, rateStructureComparison,
 } from '../lib/calc.js';
 import { F, $I } from '../components/atoms.jsx';
 import { TierTable } from '../components/TierTable.jsx';
 import { UsageTable } from '../components/UsageTable.jsx';
+import { BillCalculator } from '../components/BillCalculator.jsx';
 import { ConfirmModal } from '../components/ConfirmModal.jsx';
 import { ask, hasApiKey, MODEL_HEAVY } from '../lib/ai.js';
 import { pushToast } from '../components/Toasts.jsx';
@@ -124,7 +125,8 @@ export function Step2({ study, onField }) {
   const applyImport = () => {
     const rows = importText.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
     if (rows.length === 0) { setShowImport(false); return; }
-    const parsed = rows.map(r => r.split(/[,\t]/).map(s => s.trim()));
+    // Tab-separated (Excel) rows split on tabs only — see splitImportRow.
+    const parsed = rows.map(splitImportRow);
     const nc = classes.map(c => ({ ...c }));
     // Each import row consumes a distinct class. Without this set, two rows
     // whose names both failed to match (say "Sewer" and "Bulk") were written
@@ -557,6 +559,10 @@ Propose new rates for this class only.`;
                   )}
                 </>
               )}
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <BillCalculator classes={classes} />
             </div>
 
             <div className="card" style={{ marginTop: 14 }}>

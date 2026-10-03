@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   nv, fmt, targetFundBalance, forecastInflation, monthlyDebtService,
-  calc5Yr, DEFAULT_TARGET_FUND_BALANCE,
+  calc5Yr, DEFAULT_TARGET_FUND_BALANCE, splitImportRow,
 } from './calc.js';
 import { resolvePatch } from './state.js';
 
@@ -167,4 +167,23 @@ test('resolvePatch copes with an empty or absent patch', () => {
   assert.deepEqual(resolvePatch({ a: 1 }, {}), {});
   assert.deepEqual(resolvePatch({ a: 1 }), {});
   assert.deepEqual(resolvePatch(), {});
+});
+
+test('nv reads Excel Accounting-format values pasted with the $ outside the parentheses', () => {
+  // "$ (1,234.50)" is how Excel's Accounting format shows a negative; the "$"
+  // used to block the parenthesis check and the value silently became 0.
+  assert.equal(nv('$ (1,234.50)'), -1234.5);
+  assert.equal(nv('$(500)'), -500);
+  assert.equal(nv(' $ - '), 0); // Accounting-format zero
+  assert.equal(nv('()'), 0);
+  assert.equal(nv('$ 12oops'), 0);
+});
+
+test('splitImportRow keeps thousands separators in tab-separated (Excel) rows', () => {
+  // Splitting on commas AND tabs turned 1,080,000 gallons into 1 gallon and
+  // put "080" in the base-charge column.
+  assert.deepEqual(splitImportRow('Residential\t240\t1,080,000\t18.00\t4.25'),
+    ['Residential', '240', '1,080,000', '18.00', '4.25']);
+  assert.deepEqual(splitImportRow('Residential, 240, 1080000, 18.00'),
+    ['Residential', '240', '1080000', '18.00']);
 });

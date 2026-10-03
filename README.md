@@ -83,6 +83,54 @@ packaging, adding it to an app).
 
 ## Features
 
+### New in 2.4 — guided, faster, friendlier
+
+- **Rate Design Assistant** (Step 4) — pick a target budget coverage ratio or
+  DSCR and the tool solves for the exact across-the-board change, previews the
+  new coverage, DSCR, 5,000-gal bill and affordability, and applies it to every
+  proposed rate in one click (undoable).
+- **Phase-in planner** (Step 6) — spread a large increase over 1–5 equal
+  compounding steps, with revenue, coverage and the typical bill per year.
+- **Bill calculator** (Step 2) — any usage, every class, current vs. proposed.
+- **Undo / redo** for every edit (Ctrl+Z / Ctrl+Shift+Z), per study.
+- **Duplicate a study** to model an alternative, and **Start next year's study**
+  (this year's proposed rates and budget become next year's current).
+- **Guided onboarding** — a spotlight tour hosted by Drip that highlights the
+  real controls it describes (dashboard tour, or a workspace tour when opened
+  inside a study), a collapsible coaching
+  panel on every step (what you'll need, tips, the common pitfall), a visual
+  stepper that flags the step with a data problem, and a keyboard-shortcut
+  sheet (press `?`).
+- **Drip, the stick-figure guide** — an optional animated helper who explains
+  each screen, walks over and points at the thing to use ("Show me"), reacts as
+  the numbers change (cheers a fix, celebrates a healthy ratio, sweats when the
+  system goes underwater), carries a different prop on each step, follows the
+  pointer with his eyes, naps when you wander off, and tells terrible water
+  jokes when clicked. Drag him anywhere on the screen; "Show me" flies him up
+  to the control he's talking about. Toggle him from the
+  header or with the `B` key; he walks out through a door at the side of the
+  app when you turn him off (and back in when you turn him on), takes the
+  occasional coffee run, rewinds on undo, throws a paper airplane on export,
+  sheds a tear when a study is deleted, takes notes while you type, meditates,
+  and hands out a "grand tour" achievement for visiting all eight steps. He's
+  off by default inside a canvas app and honors the reduced-motion setting.
+- **Redesigned dashboard** — hero, KPI tiles (in progress, healthy proposals,
+  studies needing attention), getting-started cards, search / status filter /
+  sort, and study cards with progress, coverage and issue counts.
+- **Data fixes:** Excel accounting negatives (`$ (1,234.50)`) no longer read
+  as $0; a cleared scenario multiplier no longer zeroes that class in the
+  PDF/Word report; imported classes without an id are kept; Excel paste with
+  thousands separators no longer shifts columns; the DSCR data check uses the
+  scorecard's 1.25 target; malformed fund-balance, one-time-item, MHI and
+  population entries are flagged instead of silently read as $0; Rate Design
+  always lands at or above its target; the phase-in bill tracks the actual
+  proposed bill; roll-forward keeps current rates for classes with no
+  proposed side; the AI prompt no longer claims EPA affordability, grant
+  eligibility, or covenant compliance.
+- **Fix:** with the default "Comfortable" text size, current Edge/Chrome (and
+  so Power Apps) left the app filling only ~90% of its container. The zoom
+  compensation now applies only on engines that need it.
+
 - **8-step guided workflow**: System Info → Customer Classes/Rates → Budget →
   Financial Metrics → 5-Year Projection → Scenarios → AI Analysis → Final Report
 - **Usage-distribution revenue engine** — enter how many customers fall at each

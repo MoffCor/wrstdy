@@ -119,7 +119,7 @@ deploy.
 | --- | --- | --- |
 | `StudiesJson` | Multiline text | The study to edit. Accepts one study object, an array, or an export envelope (`{study}` / `{studies}`). |
 | `Mode` | Enum | `single` (default) — one study, app owns the list. `workspace` — the component shows its own study list and dashboard. |
-| `ReadOnly` | Boolean | Displays the study with editing disabled (editing disabled; step navigation remains available). |
+| `ReadOnly` | Boolean | Displays the study with editing disabled. Step navigation, the step guides, the actions menu (export) and the Drip guide remain available; undo/redo, the Rate Design Assistant's Apply, and every field are disabled — including keyboard undo. |
 | `AiResponseId` | Text | Echo of `AiRequestId`; delivers a reply to the waiting request. |
 | `AiResponseText` | Multiline text | The analysis returned by your flow. |
 | `AiResponseError` | Text | Set instead of `AiResponseText` when the flow failed. |
@@ -346,6 +346,10 @@ Run this once against a real environment before handing it to the team.
       read-only and sees who holds it
 - [ ] **Read-only** — confirm the form cannot be edited by mouse *or* keyboard
       (tab into it and try)
+- [ ] **Read-only navigation** — in read-only, the stepper, Previous/Next and
+      the step guide still work; Ctrl+Z does nothing
+- [ ] **Rate Design Assistant** — in Step 4, apply a 1.25 target; the saved
+      `PropOperatingRatio` on the list item reads ≈ 1.25 after the next save
 - [ ] **Analysis** — request one; confirm the reply lands in Step 7 and an
       `AiAnalysisRequests` row records it
 - [ ] **Analysis off** — set `Ai.Enabled` to `false`; the request fails with the
@@ -370,6 +374,8 @@ Run this once against a real environment before handing it to the team.
 | Analysis shows the wrong study's text | A stale reply arrived after the user moved on | Nothing to do — the component ignores replies whose ID doesn't match; make sure the flow echoes `AiRequestId` unchanged |
 | Report export reports "too large" | Base64 exceeds the 1,048,576-character property ceiling | Trim the saved analysis or report notes; or add a flow that writes the file directly and skip the property |
 | Old version keeps loading | Power Apps caches by manifest version | Bump `version` in `ControlManifest.Input.xml`, rebuild, re-import, republish the app |
+| App fills only ~90% of the control at the default text size | A 2.3 build on current Edge/Chrome (standardized CSS `zoom`) | Fixed in 2.4 — rebuild and re-import |
+| Want the Drip guide inside the canvas app | He is off by default in single-study mode | Click inside the control and press `B` (setting is kept for the session) |
 | `pac pcf push` fails on publisher prefix | Prefix doesn't match the target solution's publisher | Use the prefix from the existing publisher, or create one that matches `cnowrm` |
 
 ---

@@ -101,7 +101,15 @@ const normalizeForecast = (forecast = {}) => {
 
 const normalizeClasses = (classes) => {
   const base = defaultClasses();
-  const incoming = Array.isArray(classes) ? classes : [];
+  // A class with no id (hand-built or third-party JSON import) used to be
+  // skipped outright, silently dropping its customers and revenue. Give it a
+  // stable id instead; it is persisted with the study on the next save.
+  const used = new Set((Array.isArray(classes) ? classes : []).map(c => c?.id).filter(Boolean));
+  let seq = 0;
+  const nextId = () => { let id; do { id = `imp${++seq}`; } while (used.has(id)); used.add(id); return id; };
+  const incoming = (Array.isArray(classes) ? classes : [])
+    .filter(c => c && typeof c === 'object')
+    .map(c => (c.id ? c : { ...c, id: nextId() }));
   const byId = new Map(incoming.filter(Boolean).map(c => [c.id, c]));
   const merged = base.map(def => {
     const c = byId.get(def.id) || {};
@@ -161,6 +169,123 @@ export function normalizeStudy(study = {}) {
 
 export function newStudy(name = '') {
   return normalizeStudy({ name });
+}
+
+const deepClone = (v) => JSON.parse(JSON.stringify(v ?? null));
+
+/**
+ * Copy a study under a new id — for "what if" variants of the same system.
+ * The copy starts as a draft with no analysis history (the analysis described
+ * the original's numbers, not the copy's) and no backup timestamp.
+ */
+export function duplicateStudy(study, { name } = {}) {
+  const copy = deepClone(study) || {};
+  const now = new Date().toISOString();
+  return normalizeStudy({
+    ...copy,
+    id: undefined,
+    name: name || `${copy.name || 'Rate Study'} (Copy)`,
+    status: 'draft',
+    createdAt: now,
+    updatedAt: now,
+    lastExportedAt: null,
+    aiHistory: [],
+    aiAnalysis: { content: '', generatedAt: '' },
+  });
+}
+
+/**
+ * Start next year's study from this one.
+ *
+ * Rate studies are annual. Next year, the rates this study PROPOSED are the
+ * rates the system CHARGES, and this year's proposed budget is next year's
+ * starting point. Rolling forward copies proposed → current for every class
+ * and for the budget, seeds the new proposed side from the same values (ready
+ * to edit), bumps the study year, and advances the forecast: the fund balance
+ * projected for the end of year 1 is a reasonable opening balance for the new
+ * study, but it is an estimate, so it is flagged for staff to replace with the
+ * audited figure.
+ */
+export function rollForwardStudy(study, { fy1EndingBalance } = {}) {
+  const src = normalizeStudy(deepClone(study) || {});
+  const year = parseInt(src.systemInfo?.studyYear, 10);
+  const nextYear = Number.isFinite(year) ? year + 1 : new Date().getFullYear() + 1;
+  // Last year's proposed side becomes this year's current — but only where
+  // there IS a proposed side. A disabled class, or one whose proposed rates
+  // were never filled in, keeps its current rates and customers rather than
+  // being wiped to blanks.
+  const hasRates = (side) => !!side && (String(side.minCharge ?? '').trim() !== ''
+    || (side.tiers || []).some(t => String(t?.rate ?? '').trim() !== ''));
+  const classes = src.classes.map(c => {
+    const carry = c.enabled !== false && hasRates(c.prop) ? c.prop : c.cur;
+    return { ...c, cur: deepClone(carry), prop: deepClone(carry) };
+  });
+  const forecast = {
+    ...src.forecast,
+    beginFundBalance: Number.isFinite(fy1EndingBalance)
+      ? String(Math.round(fy1EndingBalance))
+      : src.forecast.beginFundBalance,
+    // Year 1's scheduled debt and one-time items are now history.
+    debtService: [...src.forecast.debtService.slice(1), ''],
+    knownItems: src.forecast.knownItems.map(it => ({
+      label: it.label,
+      vals: [...(it.vals || []).slice(1), ''],
+    })),
+  };
+  const now = new Date().toISOString();
+  return normalizeStudy({
+    ...src,
+    id: undefined,
+    name: `${src.systemInfo?.systemName || src.name || 'Rate Study'} — Rate Study ${nextYear}`,
+    status: 'draft',
+    createdAt: now,
+    updatedAt: now,
+    lastExportedAt: null,
+    systemInfo: { ...src.systemInfo, studyYear: String(nextYear) },
+    demographics: { ...src.demographics, effectiveDate: '' },
+    classes,
+    curBudget: deepClone(src.propBudget),
+    propBudget: deepClone(src.propBudget),
+    forecast,
+    activeScenario: undefined,
+    aiHistory: [],
+    aiAnalysis: { content: '', generatedAt: '' },
+    reportNotes: '',
+    rolledForwardFrom: { id: src.id, name: src.name, at: now, openingBalanceEstimated: Number.isFinite(fy1EndingBalance) },
+  });
+}
+
+// ─── Undo history ────────────────────────────────────────────────────────────
+// Edits arrive per keystroke. Recording each one would make Ctrl+Z undo a
+// single character, so keystrokes into the SAME field that land within
+// UNDO_COALESCE_MS of each other form one undo step ("what I just typed into
+// that field"). Grouping is by field, not just time: tabbing to the next field
+// starts a new step, and a group never runs past UNDO_GROUP_MAX_MS, so one
+// Ctrl+Z never reverts a whole form. Edits that aren't typing (an Apply
+// button, an AI reply landing) have no key and always get their own step.
+export const UNDO_LIMIT = 60;
+export const UNDO_COALESCE_MS = 900;
+export const UNDO_GROUP_MAX_MS = 4000;
+
+/**
+ * Record `snapshot` (the study BEFORE an edit) on an undo stack.
+ * @param stack   current undo stack (not mutated)
+ * @param opts.at     time of this edit (ms)
+ * @param opts.key    identity of the field being typed into, or null
+ * @param opts.group  the group returned by the previous call, or null
+ * @returns {{ stack, group }}
+ */
+export function pushUndo(stack = [], snapshot, { at = Date.now(), key = null, group = null } = {}) {
+  if (!snapshot) return { stack, group };
+  const coalesce = key != null && group != null && group.key === key && stack.length > 0
+    && at - group.lastAt < UNDO_COALESCE_MS && at - group.startedAt < UNDO_GROUP_MAX_MS;
+  // The earlier snapshot already holds the state before this burst of typing.
+  if (coalesce) return { stack, group: { ...group, lastAt: at } };
+  const next = [...stack, snapshot];
+  return {
+    stack: next.length > UNDO_LIMIT ? next.slice(next.length - UNDO_LIMIT) : next,
+    group: key != null ? { key, startedAt: at, lastAt: at } : null,
+  };
 }
 
 // The Step 7 conversation is stored on the study and travels with it — into

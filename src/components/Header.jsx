@@ -2,7 +2,7 @@ import { SEAL } from '../lib/seal.js';
 import { VER } from '../lib/constants.js';
 import { TextSizeMenu } from './TextSizeMenu.jsx';
 
-export function Header({ onMenuToggle }) {
+export function Header({ onMenuToggle, onShowTour, onShowShortcuts, buddyOn, onToggleBuddy }) {
   return (
     <header className="hdr no-print">
       <button
@@ -19,9 +19,29 @@ export function Header({ onMenuToggle }) {
         <div className="bn-r" />
         <div className="bn-a">Water Rate Study Tool</div>
       </div>
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div className="hdr-tools">
+        {onShowTour && (
+          <button className="hdr-btn" onClick={onShowTour} title="Take the guided tour">
+            <span aria-hidden="true">🧭</span><span className="hdr-btn-l">Guide</span>
+          </button>
+        )}
+        {onToggleBuddy && (
+          <button
+            className="hdr-btn"
+            onClick={() => onToggleBuddy()}
+            aria-pressed={!!buddyOn}
+            title={buddyOn ? 'Hide Drip, the stick-figure guide (B)' : 'Show Drip, the stick-figure guide (B)'}
+          >
+            <span aria-hidden="true">🕺</span><span className="hdr-btn-l">Drip</span>
+          </button>
+        )}
+        {onShowShortcuts && (
+          <button className="hdr-btn" onClick={onShowShortcuts} title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">
+            <span aria-hidden="true">⌨</span>
+          </button>
+        )}
         <TextSizeMenu />
-        <div className="hdr-e" style={{ marginLeft: 0 }}>
+        <div className="hdr-e">
           <div>FAITH ✦ FAMILY ✦ CULTURE</div>
           <div style={{ marginTop: 2 }}>v{VER}</div>
         </div>

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { defBudget } from '../lib/state.js';
-import { DEFAULT_SCENARIO_ADJUSTMENTS, scenarioForClasses } from '../lib/scenarios.js';
+import { DEFAULT_SCENARIO_ADJUSTMENTS, scenarioForClasses, scenarioMultiplier } from '../lib/scenarios.js';
 import { budgetTotal, totalRevenue, classMonthlyIncome, affordabilityIndex, nv, fmt } from '../lib/calc.js';
 import { ConfirmModal } from '../components/ConfirmModal.jsx';
+import { PhaseInPlanner } from '../components/PhaseInPlanner.jsx';
 
 export function Step6({ study, onField }) {
   const classes = study.classes || [];
@@ -35,7 +36,7 @@ export function Step6({ study, onField }) {
   const [pendingPreset, setPendingPreset] = useState(null);
   const useProposedRates = (id) => (scenario.rateBasis[id] || 'proposed') === 'proposed';
   const rateBasisLabel = (id) => useProposedRates(id) ? 'Proposed rates' : 'Current rates';
-  const multiplier = (id) => scenario.adjustments[id] || 1;
+  const multiplier = (id) => scenarioMultiplier(scenario.adjustments[id]);
   const applyScenario = (adjustments, basis = 'proposed', label = 'Custom') => commit({
     label,
     rateBasis: classes.reduce((acc, c) => ({ ...acc, [c.id]: basis }), {}),
@@ -116,6 +117,7 @@ export function Step6({ study, onField }) {
           ))}
         </div>
       </div>
+      <PhaseInPlanner study={study} />
       <div className="card" style={{ borderLeft: '3px solid var(--lime)' }}>
         <div className="sh">Rainy Day Fund / Capital Reserve Planning</div>
         <p style={{ fontSize: 12, color: 'var(--mid)', marginBottom: 12 }}>

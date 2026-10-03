@@ -222,7 +222,13 @@ export class WaterRateStudyTool implements ComponentFramework.StandardControl<II
     this.readOnlyObserver = null;
     const apply = () => {
       this.container.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement | HTMLTextAreaElement>('input, textarea, select, button').forEach(el => {
-        const navigation = el.tagName === 'BUTTON' && el.closest('.tabs, .ws-nv, .study-guide, .ws-bar') && !el.classList.contains('b-del');
+        // Step navigation, the guide panel, Drip, the actions-menu toggle and
+        // the menu items marked read-only-safe (export, shortcuts) stay usable;
+        // undo/redo, duplicate/roll-forward and every editor do not.
+        const navigation = el.tagName === 'BUTTON' && !el.classList.contains('b-del') && (
+          !!el.closest('.stepper, .ws-nv, .step-guide, .buddy')
+          || el.matches('.menu > button')
+          || el.hasAttribute('data-readonly-safe'));
         if (readOnly && !navigation) {
           if (!this.disabledBeforeReadOnly.has(el)) this.disabledBeforeReadOnly.set(el, el.disabled);
           el.disabled = true;

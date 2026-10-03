@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { budgetTotal, totalRevenue, nv, fmt } from '../lib/calc.js';
+import { budgetTotal, totalRevenue, classCustomers, nv, fmt } from '../lib/calc.js';
 import { defBudget } from '../lib/state.js';
 import { BudgetSection } from '../components/BudgetSection.jsx';
 import { ConfirmModal } from '../components/ConfirmModal.jsx';
@@ -88,7 +88,7 @@ Respond in concise Markdown using ## section headers and hyphenated bullets. Cit
       const lines = (b) => Object.entries(b).flatMap(([cat, fields]) =>
         Object.entries(fields).filter(([, v]) => nv(v) > 0).map(([k, v]) => `  ${cat}.${k}: $${nv(v)}`)
       ).join('\n');
-      const user = `SYSTEM: ${study.systemInfo?.systemName || 'unknown'} — ${study.systemInfo?.populationServed || 'unknown'} population — ${(study.classes || []).filter(c => c.enabled).reduce((s, c) => s + nv(c.cur.customers), 0)} total current customers.
+      const user = `SYSTEM: ${study.systemInfo?.systemName || 'unknown'} — ${study.systemInfo?.populationServed || 'unknown'} population — ${(study.classes || []).filter(c => c.enabled).reduce((s, c) => s + classCustomers(c, false), 0)} total current customers.
 
 CURRENT BUDGET (monthly, line items > $0):
 ${lines(curB)}
