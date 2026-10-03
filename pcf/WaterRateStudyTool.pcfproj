@@ -5,6 +5,10 @@
     <Name>WaterRateStudyTool</Name>
     <ProjectGuid>e963b0ff-a248-4ec4-ac8f-92a4de6404a1</ProjectGuid>
     <OutputPath>$(MSBuildThisFileDirectory)out\controls</OutputPath>
+    <!-- The SDK otherwise appends the target framework (out\controls\net8.0)
+         and the PCF build then rejects an outDir that doesn't match
+         pcfconfig.json (pcf-1007). -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
