@@ -165,7 +165,9 @@ export function StickBuddy({ context, study, onHide }) {
   }, []);
 
   const later = useCallback((fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; }, []);
-  const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
+  const spotRef = useRef(null); // the element currently pulsing from "Show me"
+  const clearSpot = () => { spotRef.current?.classList.remove('buddy-spot'); spotRef.current = null; };
+  const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; clearSpot(); };
   useEffect(() => clearTimers, []);
 
   // Play a one-shot pose, then settle back to rest (unless something else took over).
@@ -199,6 +201,16 @@ export function StickBuddy({ context, study, onHide }) {
   }, [later]);
 
   const appEl = () => rootRef.current?.closest('.wrs-app');
+  // The app is CSS-zoomed by the text-size setting, so screen pixels from
+  // getBoundingClientRect are `scale` times the CSS pixels `left` is set in.
+  const metrics = () => {
+    const app = appEl();
+    if (!app) return null;
+    const rect = app.getBoundingClientRect();
+    const scale = app.offsetWidth ? rect.width / app.offsetWidth : 1;
+    const myW = rootRef.current?.offsetWidth || W;
+    return { rect, scale, width: rect.width / scale, max: rect.width / scale - myW - MARGIN };
+  };
   const findTarget = (sel) => (sel ? appEl()?.querySelector(sel) : null);
   const tip = tips[idx % Math.max(1, tips.length)];
 
@@ -208,12 +220,11 @@ export function StickBuddy({ context, study, onHide }) {
   useEffect(() => { setHasTarget(!!findTarget(tip?.target)); });
 
   const walkTo = useCallback((nextX, then) => {
-    const app = appEl();
+    const m = metrics();
     const me = rootRef.current;
-    if (!app || !me) return;
-    const appRect = app.getBoundingClientRect();
-    const cur = me.getBoundingClientRect().left - appRect.left;
-    const max = appRect.width - W - MARGIN;
+    if (!m || !me) return;
+    const cur = (me.getBoundingClientRect().left - m.rect.left) / m.scale;
+    const { max } = m;
     const dest = nextX == null ? max : Math.max(MARGIN, Math.min(max, nextX));
     const dist = Math.abs(dest - cur);
     if (dist < 4) { setX(nextX == null ? null : dest); then?.(); return; }
@@ -338,19 +349,19 @@ export function StickBuddy({ context, study, onHide }) {
     if (!el) return;
     el.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
     later(() => {
-      const app = appEl();
-      if (!app) return;
-      const a = app.getBoundingClientRect();
+      const m = metrics();
+      if (!m) return;
       const r = el.getBoundingClientRect();
-      const cx = r.left - a.left + Math.min(r.width, 260) / 2;
-      walkTo(cx - W / 2 + 30, () => {
+      const targetScreenX = r.left + Math.min(r.width, 260) / 2;
+      walkTo((targetScreenX - m.rect.left) / m.scale - W / 2 + 30, () => {
         const me = rootRef.current?.getBoundingClientRect();
-        if (me) setFace(a.left + cx < me.left + W / 2 ? 'left' : 'right');
+        if (me) setFace(targetScreenX < me.left + me.width / 2 ? 'left' : 'right');
         act('point', { mood: 'excited', ms: 3300 });
-        el.classList.remove('buddy-spot');
+        clearSpot();
         void el.offsetWidth; // restart the pulse if it's already running
         el.classList.add('buddy-spot');
-        later(() => el.classList.remove('buddy-spot'), 3300);
+        spotRef.current = el;
+        later(clearSpot, 3300);
       });
     }, 380);
   };
@@ -384,17 +395,16 @@ export function StickBuddy({ context, study, onHide }) {
   // Drag him along the bottom edge.
   const onPointerDown = (e) => {
     if (e.button !== 0) return;
-    const app = appEl();
+    const m = metrics();
     const me = rootRef.current;
-    if (!app || !me) return;
-    const a = app.getBoundingClientRect();
-    drag.current = { sx: e.clientX, left: me.getBoundingClientRect().left - a.left, max: a.width - W - MARGIN, moved: false, lastX: e.clientX };
+    if (!m || !me) return;
+    drag.current = { sx: e.clientX, left: (me.getBoundingClientRect().left - m.rect.left) / m.scale, max: m.max, scale: m.scale, moved: false, lastX: e.clientX };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e) => {
     const d = drag.current;
     if (!d) return;
-    const dx = e.clientX - d.sx;
+    const dx = (e.clientX - d.sx) / d.scale;
     if (!d.moved && Math.abs(dx) < 6) return;
     if (!d.moved) { d.moved = true; setDragging(true); setPose('dangle'); setBubble(false); }
     setFace(e.clientX < d.lastX ? 'left' : e.clientX > d.lastX ? 'right' : face);
@@ -405,10 +415,19 @@ export function StickBuddy({ context, study, onHide }) {
     const d = drag.current;
     drag.current = null;
     if (!d?.moved) return;
+    // Swallow the click that follows this pointerup — and only that one: if
+    // the pointer was released off the figure no click comes, so clear it.
     suppressClick.current = true;
+    setTimeout(() => { suppressClick.current = false; }, 0);
     setDragging(false);
     act('land', { mood: 'surprised' });
     say(pick(DRAG_LINES), 2600);
+  };
+
+  const onPointerCancel = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (d?.moved) { setDragging(false); setPose(rest); }
   };
 
   const goHome = () => { setBubble(false); setExtra(null); if (x != null) walkTo(null); };
@@ -419,12 +438,15 @@ export function StickBuddy({ context, study, onHide }) {
   // Don't park a speech bubble over the user's work forever: once he's done
   // talking and nobody is hovering it, tuck it away. Clicking him brings it back.
   const hovering = useRef(false);
+  // The bubble can vanish from under the pointer (× or Hide) with no
+  // mouseleave; don't let that leave auto-tuck disabled for good.
+  useEffect(() => { if (!bubble) hovering.current = false; }, [bubble]);
   useEffect(() => {
     if (!bubble || !typedAll) return undefined;
     const t = setTimeout(() => { if (!hovering.current) setBubble(false); }, 16000);
     return () => clearTimeout(t);
   }, [bubble, typedAll, text]);
-  const appWidth = appEl()?.getBoundingClientRect().width || 0;
+  const appWidth = metrics()?.width || 0;
   const onLeftHalf = x != null && x < appWidth / 2;
 
   const expr = {
@@ -474,7 +496,7 @@ export function StickBuddy({ context, study, onHide }) {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onPointerCancel={onPointerCancel}
         onDoubleClick={() => { if (!bubble) { setBubble(true); setExtra(null); } }}
         aria-label="Drip, the stick-figure guide. Click for a trick and a joke; drag to move him."
         title="Click me! (or drag me)"

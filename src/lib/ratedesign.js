@@ -48,9 +48,14 @@ export function solveDscrMultiplier(classes, budget, targetDSCR = 1.25) {
 // Rates are published to the cent; base charges to the cent too. Rounding
 // after scaling means the solved revenue lands within a few cents per customer
 // of the target rather than exactly on it — which is what a real tariff does.
-const cents = (v) => (Math.round(nv(v) * 100) / 100).toFixed(2);
+// Round UP to the cent. Revenue never falls when a rate rises, so rounding
+// every scaled rate up guarantees the result meets the target the user asked
+// for; rounding to nearest left it a hair short about half the time (1.25 →
+// 1.24996), which then failed the scorecard's own ≥ 1.25 test. The epsilon
+// keeps float noise (20 × 1.1 = 22.000000000000004) from adding a cent.
+const cents = (v) => (Math.ceil(nv(v) * 100 - 1e-6) / 100).toFixed(2);
 
-/** Scale one rate side (base charge + every tier rate) by `m`, rounded to cents. */
+/** Scale one rate side (base charge + every tier rate) by `m`, rounded up to the cent. */
 export function scaleSide(side = {}, m = 1) {
   const tiers = Array.isArray(side.tiers) ? side.tiers : [];
   return {

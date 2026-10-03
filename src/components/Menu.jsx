@@ -43,6 +43,7 @@ export function Menu({ label, buttonClass = 'btn b-out btn-sm', items, align = '
                 role="menuitem"
                 className={'menu-item' + (it.danger ? ' danger' : '')}
                 disabled={it.disabled}
+                data-readonly-safe={it.safe ? '' : undefined}
                 onClick={() => { setOpen(false); it.onClick?.(); }}
               >
                 {it.icon && <span className="menu-ic" aria-hidden="true">{it.icon}</span>}

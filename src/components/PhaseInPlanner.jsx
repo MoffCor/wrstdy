@@ -16,6 +16,15 @@ export function PhaseInPlanner({ study }) {
   const plan = phaseInPlan(from, to, years);
   const bill0 = cost5000(classes, false);
   const bill1 = cost5000(classes, true);
+  // The typical bill moves on its own path: proposed rates are rarely a
+  // uniform multiple of current ones (a new tier, a bigger base charge), so
+  // scaling today's bill by the revenue factor would miss the proposed bill.
+  // Step it geometrically from today's bill to the proposed bill instead.
+  const billAt = (y, n) => {
+    if (bill0 == null || bill1 == null) return null;
+    if (bill0 > 0 && bill1 > 0) return bill0 * (bill1 / bill0) ** (y / n);
+    return bill0 + (bill1 - bill0) * (y / n);
+  };
 
   return (
     <div className="card phase-plan">
@@ -66,7 +75,7 @@ export function PhaseInPlanner({ study }) {
                       <td style={{ textAlign: 'right' }} className="num">{fmt.pctOf(plan.stepPct, 1)}</td>
                       <td style={{ textAlign: 'right' }} className="num">{fmt.c(y.revenue)}</td>
                       <td style={{ textAlign: 'right' }} className={'num ' + (or == null ? '' : or >= 1.25 ? 'pos' : or < 1 ? 'neg' : '')}>{or == null ? '—' : or.toFixed(2)}</td>
-                      <td style={{ textAlign: 'right' }} className="num">{bill0 == null ? '—' : fmt.c(bill0 * y.factor)}</td>
+                      <td style={{ textAlign: 'right' }} className="num">{billAt(y.year, years) == null ? '—' : fmt.cd(billAt(y.year, years))}</td>
                     </tr>
                   );
                 })}
@@ -74,8 +83,8 @@ export function PhaseInPlanner({ study }) {
             </table>
           </div>
           <div className="fhn" style={{ marginTop: 8 }}>
-            Budget coverage uses the proposed budget for every year (before inflation). The bill column scales today's
-            5,000-gallon bill by the same factor{bill1 != null ? `; the final year matches the proposed ${fmt.c(bill1)}` : ''}.
+            Budget coverage uses the proposed budget for every year (before inflation). The bill column steps today's
+            5,000-gallon bill toward the proposed bill in equal percentage steps{bill1 != null ? `, reaching the proposed ${fmt.cd(bill1)} in the final year` : ''}.
             {plan.years.some(y => exp > 0 && y.revenue / exp < 1) && (
               <strong style={{ color: 'var(--red)' }}> Some years run below break-even — confirm the fund balance can carry them (Step 5).</strong>
             )}

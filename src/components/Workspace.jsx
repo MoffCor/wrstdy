@@ -8,6 +8,7 @@ import { can } from '../platform/host.js';
 import { ConfirmModal } from './ConfirmModal.jsx';
 import { Menu } from './Menu.jsx';
 import { StepGuide } from './StepGuide.jsx';
+import { keyEventIsOurs, isTypingTarget } from './keys.js';
 import { Step1 } from '../steps/Step1.jsx';
 import { Step2 } from '../steps/Step2.jsx';
 import { Step3 } from '../steps/Step3.jsx';
@@ -40,10 +41,6 @@ function SavedAgo({ iso }) {
   );
 }
 
-// Is the keyboard focus somewhere the user is typing? Step shortcuts must not
-// steal Alt+Arrow from a text field (it moves by word on some platforms).
-const isTyping = (el) => !!el && (el.tagName === 'TEXTAREA' || el.isContentEditable
-  || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(el.type)));
 
 export function Workspace({
   study, onUpdate, onDelete, onExport, onDuplicate, onRollForward,
@@ -71,11 +68,14 @@ export function Workspace({
   // A new step should start at the top, not wherever the last one was scrolled.
   useEffect(() => { scrollRef.current?.scrollTo?.({ top: 0 }); onStepChange?.(step); }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Alt+←/→ moves between steps; Alt+1…8 jumps.
+  // Alt+←/→ moves between steps; Alt+1…8 jumps. Never while a field has
+  // focus: Alt+Arrow moves by word there, and on a Mac Option+digit types a
+  // character (™, £, •) — and jumping steps would unmount the field mid-edit.
+  const wsRef = useRef(null);
   useEffect(() => {
     const onKey = (e) => {
-      if (!e.altKey || e.ctrlKey || e.metaKey) return;
-      if (isTyping(document.activeElement) && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
+      if (!keyEventIsOurs(e, wsRef.current?.closest('.wrs-app')) || isTypingTarget(e.target)) return;
       if (e.key === 'ArrowRight') { e.preventDefault(); setStep(s => Math.min(STEPS.length - 1, s + 1)); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); setStep(s => Math.max(0, s - 1)); }
       else if (/^Digit[1-8]$/.test(e.code)) { e.preventDefault(); setStep(Number(e.code.slice(5)) - 1); }
@@ -102,7 +102,7 @@ export function Workspace({
   const next = STEPS[step + 1];
 
   return (
-    <div className="ws">
+    <div className="ws" ref={wsRef}>
       <div className="ws-bar no-print">
         <div className="ws-id">
           <div className="ws-t" title={study.name}>{study.name}</div>
@@ -134,8 +134,8 @@ export function Workspace({
             items={[
               onDuplicate && { icon: '⧉', label: 'Duplicate study', hint: 'Model an alternative without touching this one', onClick: () => onDuplicate(study.id) },
               onRollForward && { icon: '⏭', label: "Start next year's study", hint: "This year's proposed rates become next year's current", onClick: () => onRollForward(study.id) },
-              onExport && { icon: '⤓', label: 'Export study (.json)', hint: 'Backup or move to another computer', onClick: () => onExport(study.id) },
-              onShowShortcuts && { icon: '⌨', label: 'Keyboard shortcuts', onClick: onShowShortcuts },
+              onExport && { icon: '⤓', label: 'Export study (.json)', hint: 'Backup or move to another computer', safe: true, onClick: () => onExport(study.id) },
+              onShowShortcuts && { icon: '⌨', label: 'Keyboard shortcuts', safe: true, onClick: onShowShortcuts },
               onDelete && { divider: true },
               onDelete && { icon: '🗑', label: 'Delete study', danger: true, onClick: () => setConfirmDelete(true) },
             ]}
@@ -178,6 +178,9 @@ export function Workspace({
                 className={'stp ' + state}
                 onClick={() => goTo(s.id)}
                 onKeyDown={e => {
+                  // Alt+Arrow is the window-level step shortcut; handling it
+                  // here as well moved two steps per press.
+                  if (e.altKey || e.ctrlKey || e.metaKey) return;
                   const n = e.key === 'ArrowRight' ? (step + 1) % STEPS.length
                     : e.key === 'ArrowLeft' ? (step + STEPS.length - 1) % STEPS.length
                     : e.key === 'Home' ? 0 : e.key === 'End' ? STEPS.length - 1 : null;

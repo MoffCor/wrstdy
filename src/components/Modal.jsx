@@ -10,6 +10,11 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
 export function Modal({ title, labelledBy, onClose, children, width = 520, className = '' }) {
   const panelRef = useRef(null);
   const openerRef = useRef(typeof document !== 'undefined' ? document.activeElement : null);
+  // Callers pass inline handlers; reading the latest through a ref keeps the
+  // effect below from re-running (and bouncing focus to the opener and back)
+  // every time the parent re-renders.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const panel = panelRef.current;
@@ -17,7 +22,7 @@ export function Modal({ title, labelledBy, onClose, children, width = 520, class
     first?.focus();
     const opener = openerRef.current;
     const onKey = (e) => {
-      if (e.key === 'Escape') { e.stopPropagation(); onClose?.(); return; }
+      if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current?.(); return; }
       if (e.key !== 'Tab' || !panel) return;
       const items = [...panel.querySelectorAll(FOCUSABLE)];
       if (items.length === 0) return;
@@ -31,7 +36,7 @@ export function Modal({ title, labelledBy, onClose, children, width = 520, class
       // Return focus to the control that opened the dialog, if it still exists.
       if (opener && typeof opener.focus === 'function' && document.contains(opener)) opener.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div
@@ -40,7 +45,7 @@ export function Modal({ title, labelledBy, onClose, children, width = 520, class
       aria-modal="true"
       aria-labelledby={labelledBy}
       aria-label={labelledBy ? undefined : title}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onCloseRef.current?.(); }}
     >
       <div className={'modal ' + className} style={{ maxWidth: width }} ref={panelRef}>
         {children}

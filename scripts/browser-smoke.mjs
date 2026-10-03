@@ -169,6 +169,31 @@ console.log('\nStandalone build');
   await page.waitForTimeout(250);
   check('bill calculator renders', await page.locator('.bill-calc tbody tr').count(), n => n > 0);
 
+  // Ctrl+Z inside a field is that field's undo, never the study's.
+  await page.locator('.toast', { hasText: 'Undone' }).waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
+  const gal = page.locator('.bill-calc-input input');
+  await gal.fill('3500');
+  await gal.press('Control+z');
+  await page.waitForTimeout(200);
+  check('Ctrl+Z in a field does not undo the study', await page.locator('.toast', { hasText: 'Undone' }).count(), 0);
+
+  // Alt+→ from a focused step tab moves exactly one step.
+  await page.getByRole('tab', { name: /Budget/ }).click();
+  await page.keyboard.press('Alt+ArrowRight');
+  await page.waitForTimeout(200);
+  check('Alt+→ moves one step', await page.getByRole('tab', { name: /Financial Metrics/ }).getAttribute('aria-selected'), 'true');
+
+  // Dragging Drip tracks the pointer at the default (zoomed) text size.
+  const fig = page.locator('.buddy-fig');
+  const b0 = await fig.boundingBox();
+  await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) await page.mouse.move(b0.x + b0.width / 2 - i * 20, b0.y + b0.height / 2);
+  await page.mouse.up();
+  await page.waitForTimeout(150);
+  const b1 = await fig.boundingBox();
+  check('Drip follows a drag 1:1 at the default zoom', Math.abs((b0.x - b1.x) - 200) < 12, true);
+
   await page.getByRole('tab', { name: /5-Year Projection/ }).click();
   await page.waitForTimeout(300);
   const inflation = page.locator('.ws-sc input[type=number]').first();

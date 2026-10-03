@@ -202,11 +202,16 @@ export function rollForwardStudy(study, { fy1EndingBalance } = {}) {
   const src = normalizeStudy(deepClone(study) || {});
   const year = parseInt(src.systemInfo?.studyYear, 10);
   const nextYear = Number.isFinite(year) ? year + 1 : new Date().getFullYear() + 1;
-  const classes = src.classes.map(c => ({
-    ...c,
-    cur: deepClone(c.prop),
-    prop: deepClone(c.prop),
-  }));
+  // Last year's proposed side becomes this year's current — but only where
+  // there IS a proposed side. A disabled class, or one whose proposed rates
+  // were never filled in, keeps its current rates and customers rather than
+  // being wiped to blanks.
+  const hasRates = (side) => !!side && (String(side.minCharge ?? '').trim() !== ''
+    || (side.tiers || []).some(t => String(t?.rate ?? '').trim() !== ''));
+  const classes = src.classes.map(c => {
+    const carry = c.enabled !== false && hasRates(c.prop) ? c.prop : c.cur;
+    return { ...c, cur: deepClone(carry), prop: deepClone(carry) };
+  });
   const forecast = {
     ...src.forecast,
     beginFundBalance: Number.isFinite(fy1EndingBalance)
@@ -244,23 +249,35 @@ export function rollForwardStudy(study, { fy1EndingBalance } = {}) {
 
 // ─── Undo history ────────────────────────────────────────────────────────────
 // Edits arrive per keystroke. Recording each one would make Ctrl+Z undo a
-// single character; coalescing edits that land within UNDO_COALESCE_MS of the
-// previous one makes an undo step correspond to "what I just typed into that
-// field" — the unit people expect.
+// single character, so keystrokes into the SAME field that land within
+// UNDO_COALESCE_MS of each other form one undo step ("what I just typed into
+// that field"). Grouping is by field, not just time: tabbing to the next field
+// starts a new step, and a group never runs past UNDO_GROUP_MAX_MS, so one
+// Ctrl+Z never reverts a whole form. Edits that aren't typing (an Apply
+// button, an AI reply landing) have no key and always get their own step.
 export const UNDO_LIMIT = 60;
 export const UNDO_COALESCE_MS = 900;
+export const UNDO_GROUP_MAX_MS = 4000;
 
 /**
  * Record `snapshot` (the study BEFORE an edit) on an undo stack.
- * @returns the new stack (the input is not mutated)
+ * @param stack   current undo stack (not mutated)
+ * @param opts.at     time of this edit (ms)
+ * @param opts.key    identity of the field being typed into, or null
+ * @param opts.group  the group returned by the previous call, or null
+ * @returns {{ stack, group }}
  */
-export function pushUndo(stack = [], snapshot, at = Date.now(), lastAt = 0) {
-  if (!snapshot) return stack;
-  // Within the coalescing window the earlier snapshot already represents the
-  // state before this burst of typing — keep it, drop this one.
-  if (stack.length > 0 && at - lastAt < UNDO_COALESCE_MS) return stack;
+export function pushUndo(stack = [], snapshot, { at = Date.now(), key = null, group = null } = {}) {
+  if (!snapshot) return { stack, group };
+  const coalesce = key != null && group != null && group.key === key && stack.length > 0
+    && at - group.lastAt < UNDO_COALESCE_MS && at - group.startedAt < UNDO_GROUP_MAX_MS;
+  // The earlier snapshot already holds the state before this burst of typing.
+  if (coalesce) return { stack, group: { ...group, lastAt: at } };
   const next = [...stack, snapshot];
-  return next.length > UNDO_LIMIT ? next.slice(next.length - UNDO_LIMIT) : next;
+  return {
+    stack: next.length > UNDO_LIMIT ? next.slice(next.length - UNDO_LIMIT) : next,
+    group: key != null ? { key, startedAt: at, lastAt: at } : null,
+  };
 }
 
 // The Step 7 conversation is stored on the study and travels with it — into

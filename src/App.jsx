@@ -19,6 +19,7 @@ import { useTextZoom, zoomNeedsCompensation } from './components/TextSizeMenu.js
 import { WelcomeTour, hasSeenTour } from './components/WelcomeTour.jsx';
 import { ShortcutsModal } from './components/StepGuide.jsx';
 import { StickBuddy } from './components/StickBuddy.jsx';
+import { keyEventIsOurs, isTypingTarget } from './components/keys.js';
 import { BUDDY_SETTING } from './lib/buddy.js';
 
 // Writes are batched: a keystroke in a budget field would otherwise mean a
@@ -50,15 +51,17 @@ export default function App() {
   const [activeId, setActiveId] = useState(null);
   const [showNew, setShowNew] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // First-run tour for the full workspace. A code component bound to one study
-  // skips it: the canvas app around it is the onboarding there.
-  const [showTour, setShowTour] = useState(() => !singleStudyHost && !hasSeenTour());
+  // First-run tour for the standalone app. Inside a canvas app it doesn't
+  // auto-open (settings there last only a session, so it would reappear every
+  // visit); the Guide button still opens it.
+  const [showTour, setShowTour] = useState(() => can('localPersistence') && !singleStudyHost && !hasSeenTour());
   const [showShortcuts, setShowShortcuts] = useState(false);
-  // Drip, the stick-figure guide. On by default in the full workspace; off by
-  // default inside a canvas app, where screen space belongs to the host app.
+  // Drip, the stick-figure guide. On by default in the standalone app; off by
+  // default inside a canvas app (either mode), where the screen belongs to the
+  // host app.
   const [buddyOn, setBuddyOn] = useState(() => {
     const v = getSetting(BUDDY_SETTING);
-    return v ? v === 'on' : !singleStudyHost;
+    return v ? v === 'on' : can('localPersistence');
   });
   const [step, setStep] = useState(0);
   const toggleBuddy = (on) => {
@@ -148,6 +151,9 @@ export default function App() {
       if (!Array.isArray(incoming)) return;
       flushSave();
       const normalized = incoming.map(normalizeStudy);
+      // Snapshots taken before the host's refresh predate data someone else
+      // saved; undoing into them would silently overwrite that newer work.
+      for (const st of normalized) historyRef.current.delete(st.id);
       dirtyRef.current = false;
       persistedRef.current = JSON.stringify(normalized);
       setStudies(normalized);
@@ -198,33 +204,56 @@ export default function App() {
   // Per-study stacks of whole-study snapshots. Snapshots are cheap (a study is
   // a few KB) and restoring a whole study is the only undo that is always
   // correct, whatever mix of fields an edit touched.
-  const historyRef = useRef(new Map()); // id -> { undo: [], redo: [], lastAt }
+  const historyRef = useRef(new Map()); // id -> { undo: [], redo: [], group }
   const [, setHistoryTick] = useState(0);
   const historyFor = (id) => {
-    if (!historyRef.current.has(id)) historyRef.current.set(id, { undo: [], redo: [], lastAt: 0 });
+    if (!historyRef.current.has(id)) historyRef.current.set(id, { undo: [], redo: [], group: null });
     return historyRef.current.get(id);
   };
+  // The field the user is typing into right now, captured from the input event
+  // that produced an edit. Keystrokes in the same field coalesce into one undo
+  // step; an edit that isn't typing (Apply, an AI reply landing, a preset)
+  // always starts its own step.
+  const lastInputRef = useRef(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return undefined;
+    const onInput = (e) => { lastInputRef.current = { el: e.target, at: Date.now() }; };
+    root.addEventListener('input', onInput, true);
+    root.addEventListener('change', onInput, true);
+    return () => { root.removeEventListener('input', onInput, true); root.removeEventListener('change', onInput, true); };
+  }, []);
+  // A canvas app can put the component in read-only review mode. The wrapper
+  // disables the editors; undo, redo and the study actions must respect it too.
+  const isReadOnly = () => !!rootRef.current?.closest('[data-wrs-readonly="true"]');
   const recordHistory = (id) => {
     const current = latestRef.current.find(x => x.id === id);
     if (!current) return;
     const h = historyFor(id);
     const now = Date.now();
+    const li = lastInputRef.current;
+    const key = li && now - li.at < 250 ? li.el : null;
     const before = h.undo.length;
-    h.undo = pushUndo(h.undo, current, now, h.lastAt);
-    h.lastAt = now;
+    const r = pushUndo(h.undo, current, { at: now, key, group: h.group });
+    h.undo = r.stack;
+    h.group = r.group;
     h.redo = [];
     if (h.undo.length !== before) setHistoryTick(t => t + 1);
   };
   const travel = (id, direction) => {
+    if (isReadOnly()) return false;
     const h = historyFor(id);
     const from = direction === 'undo' ? h.undo : h.redo;
     const to = direction === 'undo' ? h.redo : h.undo;
     if (from.length === 0) return false;
-    const snapshot = from.pop();
     const current = latestRef.current.find(x => x.id === id);
+    // Export is not an edit (it never enters history), so restoring an older
+    // snapshot must not bring back an older backup date — that would re-raise
+    // the "back up" reminder right after a backup.
+    const snapshot = { ...from.pop(), lastExportedAt: current?.lastExportedAt ?? null };
     if (current) to.push(current);
     // The next edit after an undo always starts a fresh undo step.
-    h.lastAt = 0;
+    h.group = null;
     setStudies(p => p.map(x => (x.id === id ? snapshot : x)));
     setHistoryTick(t => t + 1);
     return true;
@@ -254,13 +283,13 @@ export default function App() {
 
   const duplicate = (id) => {
     const s = latestRef.current.find(x => x.id === id);
-    if (!s) return;
+    if (!s || isReadOnly()) return;
     create(duplicateStudy(s));
   };
 
   const rollForward = (id) => {
     const s = latestRef.current.find(x => x.id === id);
-    if (!s) return;
+    if (!s || isReadOnly()) return;
     // Year 1's projected ending balance is the best available estimate of next
     // year's opening balance — flagged as an estimate in the new study.
     const fy1 = calc5Yr(s.classes, s.curBudget, s.propBudget, s.forecast).propFBArr[0];
@@ -272,24 +301,23 @@ export default function App() {
     );
   };
 
-  // Global shortcuts: undo/redo for the open study, and "?" for the sheet.
-  // Text areas keep their own native undo (notes, the AI follow-up box).
+  // Global shortcuts: undo/redo for the open study, "?" for the sheet, "B"
+  // for Drip. Only for keys pressed inside this app (see keyEventIsOurs), and
+  // never while a field has focus — there Ctrl+Z is the field's own undo and
+  // letters are typing or select type-ahead.
   useEffect(() => {
     const onKey = (e) => {
-      const el = document.activeElement;
-      const inTextArea = el && (el.tagName === 'TEXTAREA' || el.isContentEditable);
-      const typing = inTextArea || (el && el.tagName === 'INPUT' && !['checkbox', 'radio', 'button'].includes(el.type));
+      if (!keyEventIsOurs(e, rootRef.current)) return;
+      const typing = isTypingTarget(e.target);
       const mod = e.ctrlKey || e.metaKey;
-      // A canvas app can put the component in read-only review mode; the
-      // wrapper disables every editor, and keyboard undo must not get around it.
-      const readOnly = !!rootRef.current?.closest('[data-wrs-readonly="true"]');
-      if (mod && !e.altKey && active && !inTextArea && !readOnly) {
+      if (mod && !e.altKey && !typing && active && !isReadOnly()) {
         const k = e.key.toLowerCase();
         if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(active.id); return; }
         if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(active.id); return; }
       }
-      if (e.key === '?' && !typing && !mod) { e.preventDefault(); setShowShortcuts(true); }
-      if ((e.key === 'b' || e.key === 'B') && !typing && !mod && !e.altKey) { e.preventDefault(); toggleBuddy(); }
+      if (typing || mod || e.altKey || e.repeat) return;
+      if (e.key === '?') { e.preventDefault(); setShowShortcuts(true); }
+      else if (e.key === 'b' || e.key === 'B') { e.preventDefault(); toggleBuddy(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -373,6 +401,9 @@ export default function App() {
       ref={rootRef}
       style={zoomStyle}
       data-wrs-root
+      // The standalone build is the whole page, so keys pressed with nothing
+      // focused are its own; as a code component it shares the page.
+      data-wrs-owns-page={can('localPersistence') ? '' : undefined}
     >
       {showChrome && <Header onMenuToggle={() => setSidebarOpen(o => !o)} onShowTour={() => setShowTour(true)} onShowShortcuts={() => setShowShortcuts(true)} buddyOn={buddyOn} onToggleBuddy={toggleBuddy} />}
       <div className="row">

@@ -29,9 +29,14 @@ export function RateDesignPanel({ study, onField }) {
   const rev = totalRevenue(classes, true).monthly;
   const exp = budgetTotal(budget).total;
   const t = nv(target);
-  const m = mode === 'dscr'
+  // Only a sensible positive target produces a multiplier; a blank, zero or
+  // negative target would otherwise print a stray "0" or, via Apply, write
+  // zero or negative rates.
+  const validTarget = Number.isFinite(t) && t > 0 && t <= 5;
+  const raw = !validTarget ? null : mode === 'dscr'
     ? solveDscrMultiplier(classes, budget, t)
     : solveUniformMultiplier(classes, budget, t);
+  const m = Number.isFinite(raw) && raw > 0 ? raw : null;
 
   if (!(rev > 0) || !(exp > 0)) {
     return (
@@ -90,7 +95,8 @@ export function RateDesignPanel({ study, onField }) {
         )}
       </div>
 
-      {m && (
+      {!validTarget && <div className="fhn" style={{ color: 'var(--red)' }}>Enter a target between 0.01 and 5.00.</div>}
+      {m != null && (
         <>
           <div className={'rd-answer' + (pct > 0 ? ' up' : pct < 0 ? ' down' : '')}>
             <div className="rd-answer-n">{already ? 'On target' : `${pct > 0 ? '+' : ''}${(pct * 100).toFixed(1)}%`}</div>

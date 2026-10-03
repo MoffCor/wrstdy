@@ -8,7 +8,7 @@ import {
 import { totalRevenue, budgetTotal, operatingRatio, debtServiceCoverage, calcBill } from './calc.js';
 import { makeSampleStudy } from './sample-study.js';
 import {
-  duplicateStudy, rollForwardStudy, pushUndo, UNDO_LIMIT, UNDO_COALESCE_MS, normalizeStudy,
+  duplicateStudy, rollForwardStudy, pushUndo, UNDO_LIMIT, UNDO_COALESCE_MS, UNDO_GROUP_MAX_MS, normalizeStudy,
 } from './state.js';
 
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg ?? ''} expected ${b}, got ${a}`);
@@ -27,6 +27,18 @@ test('solving for a target operating ratio lands on that ratio after rounding to
     const or = operatingRatio(totalRevenue(scaled, true).monthly, budgetTotal(s.propBudget).total);
     // Rounding every rate to the cent moves revenue by a fraction of a percent.
     near(or, target, 0.01, `target ${target}`);
+  }
+});
+
+test('applied rates always meet the target — never a hair short of it', () => {
+  const s = makeSampleStudy();
+  const exp = budgetTotal(s.propBudget).total;
+  for (let t = 100; t <= 200; t++) {
+    const target = t / 100;
+    const m = solveUniformMultiplier(s.classes, s.propBudget, target);
+    const or = operatingRatio(totalRevenue(scaleProposedRates(s.classes, m), true).monthly, exp);
+    assert.ok(or >= target, `target ${target} landed at ${or}`);
+    assert.ok(or - target < 0.01, `target ${target} overshot to ${or}`);
   }
 });
 
@@ -173,6 +185,18 @@ test('rolling forward makes this year\'s proposed rates next year\'s current rat
   assert.equal(r.status, 'draft');
 });
 
+test('rolling forward keeps current rates where there is no proposed side', () => {
+  const s = makeSampleStudy();
+  const target = s.classes[0];
+  target.prop = { ...target.prop, minCharge: '', tiers: target.prop.tiers.map(t => ({ ...t, rate: '' })) };
+  const disabled = s.classes.find(c => c.id !== target.id);
+  disabled.enabled = false;
+  const r = rollForwardStudy(s);
+  const n = normalizeStudy(s);
+  assert.deepEqual(r.classes.find(c => c.id === target.id).cur, n.classes.find(c => c.id === target.id).cur);
+  assert.deepEqual(r.classes.find(c => c.id === disabled.id).cur, n.classes.find(c => c.id === disabled.id).cur);
+});
+
 test('rolling forward shifts the five-year schedules left by one year', () => {
   const s = makeSampleStudy();
   s.forecast.debtService = ['100', '200', '300', '400', '500'];
@@ -184,20 +208,34 @@ test('rolling forward shifts the five-year schedules left by one year', () => {
 
 // ─── Undo ───────────────────────────────────────────────────────────────────
 
-test('pushUndo coalesces a burst of typing into one undo step', () => {
-  let stack = [];
-  stack = pushUndo(stack, 'A', 1000, 0);
-  stack = pushUndo(stack, 'B', 1000 + UNDO_COALESCE_MS - 1, 1000);
-  assert.deepEqual(stack, ['A']);
-  stack = pushUndo(stack, 'C', 1000 + 5000, 1000 + UNDO_COALESCE_MS - 1);
-  assert.deepEqual(stack, ['A', 'C']);
+test('pushUndo coalesces a burst of typing in one field into one undo step', () => {
+  const field = {};
+  let r = pushUndo([], 'A', { at: 1000, key: field });
+  r = pushUndo(r.stack, 'B', { at: 1000 + UNDO_COALESCE_MS - 1, key: field, group: r.group });
+  assert.deepEqual(r.stack, ['A']);
+  r = pushUndo(r.stack, 'C', { at: 1000 + 5000, key: field, group: r.group });
+  assert.deepEqual(r.stack, ['A', 'C'], 'a pause starts a new step');
+});
+
+test('pushUndo starts a new step for a different field, a non-typing edit, or a long burst', () => {
+  const a = {}, b = {};
+  let r = pushUndo([], 'A', { at: 0, key: a });
+  r = pushUndo(r.stack, 'B', { at: 100, key: b, group: r.group });
+  assert.deepEqual(r.stack, ['A', 'B'], 'tabbing to the next field');
+  r = pushUndo(r.stack, 'C', { at: 200, key: null, group: r.group });
+  assert.deepEqual(r.stack, ['A', 'B', 'C'], 'an Apply/AI edit is its own step');
+  assert.equal(r.group, null);
+  // Continuous typing in one field still splits once the group runs long.
+  let s = pushUndo([], 'x0', { at: 0, key: a });
+  for (let t = 500; t <= UNDO_GROUP_MAX_MS + 1000; t += 500) s = pushUndo(s.stack, 'x' + t, { at: t, key: a, group: s.group });
+  assert.equal(s.stack.length, 2);
 });
 
 test('pushUndo is capped and never mutates its input', () => {
   let stack = [];
-  for (let i = 0; i < UNDO_LIMIT + 10; i++) stack = pushUndo(stack, i, i * 10_000, (i - 1) * 10_000);
+  for (let i = 0; i < UNDO_LIMIT + 10; i++) stack = pushUndo(stack, i, { at: i * 10_000 }).stack;
   assert.equal(stack.length, UNDO_LIMIT);
   assert.equal(stack[0], 10, 'oldest entries drop off first');
   const frozen = Object.freeze(['x']);
-  assert.doesNotThrow(() => pushUndo(frozen, 'y', 99_999, 0));
+  assert.doesNotThrow(() => pushUndo(frozen, 'y', { at: 99_999 }));
 });
