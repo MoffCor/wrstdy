@@ -37,15 +37,17 @@ jobs:
         run: |
           New-Item -ItemType Directory release -Force | Out-Null
           Copy-Item deployment release -Recurse
-          $files = Get-ChildItem pcf/Solutions/bin/Release -Filter '*.zip'
-          if ($files.Count -ne 2) { throw 'Expected managed and unmanaged component solution ZIPs' }
+          # The SDK writes the packages under a target-framework folder
+          # (bin/Release/net8.0), so search below bin/Release.
+          $files = @(Get-ChildItem pcf/Solutions/bin/Release -Filter '*.zip' -Recurse)
+          if ($files.Count -ne 2) { throw "Expected managed and unmanaged component solution ZIPs, found: $($files.FullName -join ', ')" }
           foreach ($file in $files) {
             $suffix = if ($file.BaseName -match '_managed$') { 'managed' } else { 'unmanaged' }
             Copy-Item $file.FullName "release/CNO-WaterRateStudy-PCF-$suffix.zip"
           }
       - uses: actions/upload-artifact@v4
         with:
-          name: CNO-WaterRateStudy-2.3-Deployment
+          name: CNO-WaterRateStudy-2.4-Deployment
           path: release/
           if-no-files-found: error
   browser:
