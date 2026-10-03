@@ -3,6 +3,7 @@ import {
   BUDDY_JOKES, BUDDY_PROPS, IDLE_QUIPS, WAKE_LINES, DRAG_LINES, DIZZY_LINES,
   BUDDY_EVENTS, BYE_LINES, BACK_LINES, COFFEE_LINES, COFFEE_BACK_LINES, TYPING_LINES,
   HOVER_LINES, MEDITATE_LINES, WATCH_LINES, TOUR_DONE_LINE,
+  LADDER_LINES, BALLOON_LINES, UMBRELLA_LINES, FLY_LINES,
   buddyOpening, buddyMetrics, buddyReaction, pick, seasonal,
 } from '../lib/buddy.js';
 import { onBuddyEvent } from '../lib/buddyBus.js';
@@ -249,7 +250,8 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   const [pose, setPoseState] = useState('idle');
   const [moodOverride, setMoodOverride] = useState(null);
   const [x, setX] = useState(null);               // null = parked at home (bottom-right)
-  const [y, setY] = useState(null);               // CSS bottom offset; null = on the floor
+  const [y, setY] = useState(null);
+  const [ladder, setLadder] = useState(null);     // { left, bottom, height, state }               // CSS bottom offset; null = on the floor
   const [face, setFace] = useState('left');
   const [confetti, setConfetti] = useState(null);
   const [dragging, setDragging] = useState(false);
@@ -326,6 +328,11 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
 
   // Walk (or, when the trip includes a climb, fly) to a spot. `nextX` null
   // means home; `nextY` is a CSS bottom offset, null meaning the floor.
+  // Getting somewhere. Along the same level he walks (or runs, if it's far).
+  // A change of height is a two-part trip: walk across first, then go up or
+  // down by whatever's handy — a ladder he props up, a balloon, an umbrella
+  // on the way down, or (rarely) just flying. `nextX` null means home;
+  // `nextY` is a CSS bottom offset, null meaning the floor.
   const walkTo = useCallback((nextX, then, nextY = null) => {
     const m = metrics();
     const me = rootRef.current;
@@ -333,26 +340,64 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     const r = me.getBoundingClientRect();
     const cur = (r.left - m.rect.left) / m.scale;
     const curY = (m.rect.bottom - r.bottom) / m.scale;
+    const myH = me.offsetHeight || 104;
     const floor = me.classList.contains('raised') ? 58 : 10;
     const dest = nextX == null ? m.max : Math.max(MARGIN, Math.min(m.max, nextX));
     const destY = nextY == null ? floor : Math.max(MARGIN, Math.min(m.maxY, nextY));
-    const dist = Math.hypot(dest - cur, destY - curY);
     const home = () => { if (nextX == null) { setX(null); setFace('left'); } if (nextY == null) setY(null); };
-    if (dist < 4) { setX(nextX == null ? null : dest); setY(nextY == null ? null : destY); then?.(); return; }
-    const flying = Math.abs(destY - curY) > 30;
-    const running = !flying && dist > 380;
-    const ms = Math.round(Math.min(2400, Math.max(450, dist * (running || flying ? 1.7 : 3))));
-    me.style.setProperty('--walk-ms', `${ms}ms`);
-    setFace(dest < cur ? 'left' : 'right');
+    if (Math.hypot(dest - cur, destY - curY) < 4) { setX(nextX == null ? null : dest); setY(nextY == null ? null : destY); then?.(); return; }
+
     setX(cur); // pin the current spot so the move animates
     setY(curY);
-    requestAnimationFrame(() => {
-      setPose(flying ? 'fly' : running ? 'run' : 'walk');
-      setX(dest);
-      setY(destY);
-      later(() => { setPose(rest); home(); then?.(); }, ms);
-    });
-  }, [later, rest, setPose]);
+
+    const vertical = (after) => {
+      const dy = destY - curY;
+      if (Math.abs(dy) <= 30) { setY(destY); after(); return; }
+      const up = dy > 0;
+      const mode = reducedMotion() ? 'fly'
+        : up ? pick(['ladder', 'ladder', 'ladder', 'balloon', 'fly'])
+          : pick(['ladder', 'ladder', 'umbrella', 'umbrella']);
+      const ms = Math.round(Math.min(2600, Math.max(700, Math.abs(dy) * (mode === 'ladder' ? 7 : 3.2))));
+      const go = () => {
+        me.style.setProperty('--walk-ms', `${ms}ms`);
+        setPose(mode === 'ladder' ? 'climb' : mode === 'fly' ? 'fly' : mode);
+        requestAnimationFrame(() => setY(destY));
+        later(() => after(), ms);
+      };
+      if (mode === 'ladder') {
+        // Prop the ladder up, climb, fold it away behind him.
+        const bottom = Math.min(curY, destY);
+        setLadder({ left: dest + 15, bottom, height: Math.abs(dy) + myH * 0.9, state: 'up', key: Date.now() });
+        setFace('right');
+        if (Math.random() < 0.3) say(pick(LADDER_LINES), 2400);
+        later(go, 450);
+        later(() => setLadder(l => (l ? { ...l, state: 'fold' } : l)), 450 + ms + 150);
+        later(() => setLadder(null), 450 + ms + 600);
+      } else {
+        if (Math.random() < 0.3) say(pick(mode === 'balloon' ? BALLOON_LINES : mode === 'umbrella' ? UMBRELLA_LINES : FLY_LINES), 2400);
+        go();
+      }
+    };
+
+    const horizontal = (after) => {
+      const dist = Math.abs(dest - cur);
+      if (dist < 4) { after(); return; }
+      const running = dist > 380;
+      const ms = Math.round(Math.min(2400, Math.max(450, dist * (running ? 1.7 : 3))));
+      me.style.setProperty('--walk-ms', `${ms}ms`);
+      setFace(dest < cur ? 'left' : 'right');
+      requestAnimationFrame(() => {
+        setPose(running ? 'run' : 'walk');
+        setX(dest);
+        later(after, ms);
+      });
+    };
+
+    const done = () => { setPose(rest); home(); then?.(); };
+    // Going up: walk over, then climb. Coming down: get down first, then walk.
+    if (destY >= curY) horizontal(() => vertical(done));
+    else vertical(() => horizontal(done));
+  }, [later, rest, setPose, say]);
 
   // In through the door at the side of the app: it swings open, he steps out,
   // waves, and it closes behind him.
@@ -733,6 +778,14 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   const raised = context === 'dashboard' ? '' : ' raised';
   return (
     <>
+    {ladder && (
+      <div
+        key={ladder.key}
+        className={`buddy-ladder no-print ladder-${ladder.state}`}
+        style={{ left: ladder.left, bottom: ladder.bottom, height: ladder.height }}
+        aria-hidden="true"
+      />
+    )}
     <div className={`buddy-door no-print door-${door}${raised}`} aria-hidden="true">
       <div className="door-frame">
         <div className="door-inside" />

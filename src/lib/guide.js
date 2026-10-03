@@ -165,3 +165,48 @@ export const TOUR_WORKSPACE = [
     body: 'Fill in steps 1–3, check the scorecard in step 4, and export the board report from step 8. The Data Check tells you exactly what still needs attention.',
     drip: "Go get 'em. I'll be around — click me for tips, drag me anywhere." },
 ];
+
+// "Tour this step": a short spotlight tour of one step's key sections. A
+// target of `sh:Heading` means the card whose section heading starts with
+// that text, so the tours survive layout changes.
+export const TOUR_STEPS = {
+  0: [
+    { target: 'sh:Public Water System', title: 'Who this is for', pose: 'point', body: 'System name, PWS ID and type. The name labels every report and export; the PWS ID (OK + 7 digits, from SDWIS) is how the state knows it.', drip: 'Spell the name the way the board does. They notice.' },
+    { target: 'sh:Location', title: 'Where it is', pose: 'point', body: 'County and address put the system on the map (use Geocode), and the source type matters for what a reasonable budget looks like.', drip: 'Geocode is one click. The map appreciates it.' },
+    { target: 'sh:Demographics', title: 'The number that drives affordability', pose: 'think', body: 'Monthly median household income. Census ACS publishes it annually — divide by 12. Affordability, the income bands and the bill-burden checks all read from this.', drip: 'Annual in the monthly box is the single most common mistake. Not judging. Counting.' },
+  ],
+  1: [
+    { target: 'sh:Customer Classes', title: 'Who pays', pose: 'point', body: 'Pick a class, rename it if needed (sewer, bulk), and enter how many customers it has today and under the proposal.', drip: 'Unused classes can stay off. They don\'t mind.' },
+    { target: 'sh:Volume Tier Rates', title: 'What they pay', pose: 'point', body: 'Base charge plus cumulative $/1,000-gal blocks. Current on one side, proposed on the other. The last block runs forever.', drip: 'Blocks are cumulative. The 5,000-gallon customer pays block 1 first, like everyone.' },
+    { target: '.bill-calc', title: 'Answer "what does that do to my bill?"', pose: 'thumbs', body: 'Type any usage and see every class\'s bill, current vs. proposed. Handy in a board meeting.', drip: 'This is the question you will get. Now you have the answer.' },
+    { target: 'sh:All Customer Classes', title: 'Does it add up', pose: 'think', body: 'Monthly revenue by class from the rates and usage above — current vs. proposed.', drip: 'If a class shows $0 here, it\'s missing customers or rates.' },
+  ],
+  2: [
+    { target: 'sh:Current vs. Proposed', title: 'Every dollar out', pose: 'point', body: 'Edit current and proposed budgets side by side: staff, office, plant, distribution, vehicles, debt, and other. Monthly figures.', drip: 'Debt goes in the debt section. Coverage ratios depend on it.' },
+    { target: '.rbar', title: 'The bottom line', pose: 'think', body: 'Totals and the change between budgets, updated as you type.', drip: 'If proposed is lower than current, someone is optimistic.' },
+  ],
+  3: [
+    { target: 'sh:Data Check', title: 'Read this first', pose: 'point', body: 'Anything here can make the numbers below wrong. Each finding names the step that fixes it.', drip: 'Empty is good. Empty is very good.' },
+    { target: 'sh:System Scorecard', title: 'The scorecard', pose: 'point', body: 'Budget coverage, DSCR, affordability, debt-to-income and base coverage — current vs. proposed, each against its planning target.', drip: 'Green on the right, red on the left is the usual story. That\'s why we\'re here.' },
+    { target: '.rd-card', title: 'Let the tool do the algebra', pose: 'celebrate', body: 'Pick a target coverage ratio or DSCR; the assistant finds the exact across-the-board change and applies it to every proposed rate. Ctrl+Z if you change your mind.', drip: 'It rounds up to the cent, so it lands on target. Not a hair under.' },
+    { target: 'sh:True Cost of Service', title: 'What water actually costs', pose: 'think', body: 'Cost per 1,000 gallons against revenue per 1,000 gallons — the break-even view.', drip: 'Water is free. Pipes, pumps and people are not.' },
+  ],
+  4: [
+    { target: 'sh:Forecast Assumptions', title: 'Five years out', pose: 'point', body: 'Inflation, growth, opening fund balance and the reserve target. Small percentages compound.', drip: '3% a year is 16% by year five. Budgets remember.' },
+    { target: 'sh:Debt Service Schedule', title: 'Loans by year', pose: 'point', body: 'Leave a year blank to keep the budget\'s debt; enter 0 when a loan is paid off.', drip: 'Blank and zero mean different things here. On purpose.' },
+    { target: 'sh:Fund Balance Projection', title: 'Will the cash hold', pose: 'think', body: 'Current vs. proposed fund balance each year against the reserve target.', drip: 'A line going below zero is the slide the board remembers.' },
+  ],
+  5: [
+    { target: 'sh:Quick Presets', title: 'Try a different split', pose: 'point', body: 'Shift more of the burden to residential or commercial, or hold current rates, in one click. Your proposed rates are not changed.', drip: 'Scenarios are free. Rate hearings are not.' },
+    { target: 'sh:Manual Adjustments', title: 'Fine-tune by class', pose: 'point', body: '1.10 is +10% on that class, 0.90 is −10%. Blank means unchanged.', drip: 'Small numbers. Big meetings.' },
+    { target: '.phase-plan', title: 'Soften a big jump', pose: 'thumbs', body: 'Spread the increase over up to five equal steps and see coverage and the typical bill each year.', drip: 'Nobody likes a 40% increase. Four 9% ones go down easier.' },
+  ],
+  6: [
+    { target: 'sh:AI Connection', title: 'A first draft, not a final one', pose: 'think', body: 'Generate a narrative from the study\'s numbers, then ask follow-ups in plain English. Read it before it goes in a board packet.', drip: 'It writes well. It also writes confidently. Check both.' },
+  ],
+  7: [
+    { target: 'sh:Factors Considered', title: 'The report', pose: 'point', body: 'Everything a board needs, in order. Notes you add here go in the export.', drip: 'This is the part people actually read.' },
+    { target: 'sh:Customer Bill Impact', title: 'What it means for a household', pose: 'point', body: 'Bills at common usage levels, current vs. proposed.', drip: 'Lead with this in the meeting. Trust me.' },
+    { target: '.ws-actions', title: 'Export and next year', pose: 'thumbs', body: 'Export PDF or Word from this step; the ⋯ menu starts next year\'s study from this one.', drip: 'Next year, you start from here instead of from scratch. You\'re welcome, next year.' },
+  ],
+};

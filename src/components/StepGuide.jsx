@@ -1,4 +1,4 @@
-import { STEP_GUIDES, SHORTCUTS } from '../lib/guide.js';
+import { STEP_GUIDES, SHORTCUTS, TOUR_STEPS } from '../lib/guide.js';
 import { getSetting, setSetting } from '../platform/host.js';
 import { useState } from 'react';
 import { Modal } from './Modal.jsx';
@@ -10,7 +10,7 @@ const COLLAPSE_KEY = 'wrs-step-guides-collapsed';
  * analyst has collapsed guides, so experienced staff hide them once and new
  * staff see them by default.
  */
-export function StepGuide({ step }) {
+export function StepGuide({ step, onTour }) {
   const g = STEP_GUIDES[step];
   const [open, setOpen] = useState(() => getSetting(COLLAPSE_KEY) !== '1');
   if (!g) return null;
@@ -29,6 +29,11 @@ export function StepGuide({ step }) {
         </span>
         <span className="step-guide-toggle">{open ? 'Hide guide' : 'Show guide'}</span>
       </button>
+      {onTour && TOUR_STEPS[step] && (
+        <button className="step-guide-tour" onClick={() => onTour(step)} title="Spotlight this step's key sections, with Drip">
+          🧭 Tour this step
+        </button>
+      )}
       {open && (
         <div className="step-guide-body">
           <div>

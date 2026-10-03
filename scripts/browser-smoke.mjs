@@ -164,6 +164,17 @@ console.log('\nStandalone build');
   const projectionText = await page.locator('.ws-sc').innerText();
   check('no "$-1,234" malformed negatives', /\$-[\d,]/.test(projectionText), false);
 
+  // "Tour this step" spotlights the step's own sections.
+  await page.getByRole('tab', { name: /Financial Metrics/ }).click();
+  await page.waitForTimeout(250);
+  await page.locator('.step-guide-tour').click();
+  await page.waitForSelector('.tour-card', { timeout: 3000 });
+  await page.waitForTimeout(600);
+  check('step tour spotlights a section of this step', await page.locator('.tour-spot').count(), 1);
+  check('step tour opens on a Step 4 section', /Read this first|The scorecard/.test(await page.locator('.tour-card h3').textContent()), true);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+
   // Rate design assistant: solve for a 1.50 operating ratio and apply it.
   await page.getByRole('tab', { name: /Financial Metrics/ }).click();
   await page.waitForTimeout(250);

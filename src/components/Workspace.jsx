@@ -44,7 +44,7 @@ function SavedAgo({ iso }) {
 
 export function Workspace({
   study, onUpdate, onDelete, onExport, onDuplicate, onRollForward,
-  onUndo, onRedo, canUndo, canRedo, onShowShortcuts, onStepChange,
+  onUndo, onRedo, canUndo, canRedo, onShowShortcuts, onStepChange, onTourStep,
 }) {
   const [step, setStep] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -218,7 +218,7 @@ export function Workspace({
 
       <div className="ws-sc" ref={scrollRef} role="tabpanel" aria-label={stepTitle(STEPS[step])}>
         <div className="ws-inner">
-          <StepGuide step={step} />
+          <StepGuide step={step} onTour={onTourStep} />
           {step === 0 && <Step1 {...stepProps} />}
           {step === 1 && <Step2 {...stepProps} />}
           {step === 2 && <Step3 {...stepProps} />}
