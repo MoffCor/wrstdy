@@ -255,7 +255,7 @@ export function validateStudy(study = {}) {
   }
   if (!(curBT.total > 0) && propBT.total > 0) {
     add('no-cur-budget', 'warn', 2, 'The current budget is empty',
-      'Current-rate comparisons (operating ratio, true cost of service, the current-track projection) read N/A without it. "Copy Cur→Prop" works in reverse too — fill Current first, then copy.');
+      'Current-rate comparisons (budget coverage, true cost of service, the current-track projection) read N/A without it. "Copy Cur→Prop" works in reverse too — fill Current first, then copy.');
   }
   if (propBT.total > 0 && !(nv(propB.oth?.depreciation) > 0)) {
     add('no-depreciation', 'warn', 2, 'No asset-replacement set-aside in the proposed budget',
@@ -278,10 +278,10 @@ export function validateStudy(study = {}) {
   const propOR = operatingRatio(revProp.monthly, propBT.total);
   if (propOR != null && propOR < 1) {
     add('or-below-1', 'error', 3, 'Proposed rates do not cover proposed expenses',
-      `Operating ratio is ${propOR.toFixed(2)} (below 1.00). The proposed structure runs a monthly deficit of ${Math.abs(revProp.monthly - propBT.total).toLocaleString('en-US', { style: 'currency', currency: 'USD' })}.`);
+      `Budget coverage ratio is ${propOR.toFixed(2)} (below 1.00). The proposed structure runs a monthly deficit of ${Math.abs(revProp.monthly - propBT.total).toLocaleString('en-US', { style: 'currency', currency: 'USD' })}.`);
   } else if (propOR != null && propOR < 1.25) {
-    add('or-thin', 'warn', 3, 'Proposed operating ratio is below the 1.25 benchmark',
-      `Operating ratio is ${propOR.toFixed(2)}. Above break-even with a margin below the planning target; inspect the reserves already included in the budget.`);
+    add('or-thin', 'warn', 3, 'Proposed budget coverage ratio is below the 1.25 benchmark',
+      `Budget coverage ratio is ${propOR.toFixed(2)}. Above break-even with a margin below the planning target; inspect the reserves already included in the budget.`);
   }
 
   const propDSCR = debtServiceCoverage(propB, revProp.monthly);

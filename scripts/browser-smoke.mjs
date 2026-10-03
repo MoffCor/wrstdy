@@ -96,8 +96,40 @@ console.log('\nStandalone build');
   await page.waitForSelector('.wrs-app', { timeout: 15000 });
   check('mounts into the scoped .wrs-app wrapper', true, true);
 
+  // First run opens the welcome tour; it must be skippable and stay skipped.
+  await page.waitForSelector('.modal.tour', { timeout: 5000 });
+  check('first run shows the welcome tour', await page.locator('.modal.tour').count(), 1);
+  await page.getByRole('button', { name: 'Next →' }).click();
+  check('tour advances', await page.locator('.tour-dot.on').count(), 1);
+  await page.getByRole('button', { name: 'Skip tour' }).click();
+  check('tour closes on skip', await page.locator('.modal.tour').count(), 0);
+
+  // Drip, the guide, is on by default and must be dismissable from the keyboard.
+  check('Drip is on the dashboard', await page.locator('.buddy').count(), 1);
+  await page.waitForTimeout(1200);
+  await page.locator('.buddy-fig').click();
+  await page.waitForTimeout(300);
+  check('clicking Drip tells a joke', await page.locator('.buddy-bubble.joke').count(), 1);
+  await page.keyboard.press('b');
+  await page.waitForTimeout(200);
+  check('B hides Drip', await page.locator('.buddy').count(), 0);
+  await page.keyboard.press('b');
+  await page.waitForTimeout(200);
+  check('B brings Drip back', await page.locator('.buddy').count(), 1);
+
   await page.getByRole('button', { name: /Load Sample Study/i }).click();
-  await page.waitForSelector('.tabs', { timeout: 10000 });
+  await page.waitForSelector('.stepper', { timeout: 10000 });
+  check('Drip follows into the workspace', await page.locator('.buddy.raised').count(), 1);
+  // The actions menu must open above the stepper, and Duplicate must work.
+  await page.getByRole('button', { name: 'Study actions' }).click();
+  await page.getByRole('menuitem', { name: /Duplicate study/ }).click({ timeout: 5000 });
+  await page.waitForTimeout(300);
+  check('duplicate opens a copy', /\(Copy\)/.test(await page.locator('.ws-t').textContent()), true);
+  if (process.env.WRS_SCREENSHOT_DIR) {
+    fs.mkdirSync(process.env.WRS_SCREENSHOT_DIR, { recursive: true });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: path.join(process.env.WRS_SCREENSHOT_DIR, 'workspace.png') });
+  }
 
   for (const step of STEPS) {
     await page.getByRole('tab', { name: new RegExp(step.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) }).click();
@@ -119,6 +151,26 @@ console.log('\nStandalone build');
   const projectionText = await page.locator('.ws-sc').innerText();
   check('no "$-1,234" malformed negatives', /\$-[\d,]/.test(projectionText), false);
 
+  // Rate design assistant: solve for a 1.50 operating ratio and apply it.
+  await page.getByRole('tab', { name: /Financial Metrics/ }).click();
+  await page.waitForTimeout(250);
+  await page.locator('.rd-card .chip', { hasText: '1.50' }).click();
+  await page.getByRole('button', { name: 'Apply to proposed rates' }).click();
+  await page.locator('.modal').getByRole('button').last().click();
+  await page.waitForTimeout(400);
+  const orAfter = await page.locator('.rd-card .rd-to').first().textContent();
+  check('rate design hits the target ratio', Math.abs(parseFloat(orAfter) - 1.5) < 0.02, true);
+  await page.keyboard.press('Control+z');
+  await page.waitForTimeout(400);
+  const orUndone = await page.locator('.rd-card .rd-answer-n').textContent();
+  check('undo restores the previous rates', /[1-9]/.test(orUndone), true);
+
+  await page.getByRole('tab', { name: /Cust\. Classes/ }).click();
+  await page.waitForTimeout(250);
+  check('bill calculator renders', await page.locator('.bill-calc tbody tr').count(), n => n > 0);
+
+  await page.getByRole('tab', { name: /5-Year Projection/ }).click();
+  await page.waitForTimeout(300);
   const inflation = page.locator('.ws-sc input[type=number]').first();
   await inflation.fill('');
   await page.waitForTimeout(200);
@@ -262,16 +314,16 @@ if (fs.existsSync(CONTROL_BUNDLE)) {
     window.__control = ctl; window.__context = context; window.__events = [];
     ctl.init(context, () => window.__events.push(ctl.getOutputs()), {}, document.getElementById('ctl'));
   }, makeSampleStudy());
-  await page.waitForSelector('#ctl .tabs');
+  await page.waitForSelector('#ctl .stepper');
   check('compiled wrapper honors initial height', await page.locator('#ctl').evaluate(el => el.style.height), '760px');
   await page.waitForTimeout(600);
   check('compiled wrapper does not save on open', await page.evaluate(() => window.__events.length), 0);
-  await page.getByRole('button', { name: 'Study guide' }).click();
+  check('compiled wrapper shows the step guide', await page.locator('#ctl .step-guide').count(), 1);
+  check('Drip stays off by default inside a canvas app', await page.locator('#ctl .buddy').count(), 0);
   if (process.env.WRS_SCREENSHOT_DIR) {
     fs.mkdirSync(process.env.WRS_SCREENSHOT_DIR, { recursive: true });
     await page.screenshot({ path: path.join(process.env.WRS_SCREENSHOT_DIR, 'water-rate-study-desktop.png') });
   }
-  await page.getByRole('button', { name: 'Continue study' }).click();
   await page.evaluate(() => { window.__context.parameters.ReadOnly.raw = true; window.__control.updateView(window.__context); });
   check('read-only disables editing', await page.locator('#ctl input').first().isDisabled(), true);
   await page.getByRole('tab', { name: /Budget/ }).click();

@@ -83,6 +83,37 @@ packaging, adding it to an app).
 
 ## Features
 
+### New in 2.4 — guided, faster, friendlier
+
+- **Rate Design Assistant** (Step 4) — pick a target budget coverage ratio or
+  DSCR and the tool solves for the exact across-the-board change, previews the
+  new coverage, DSCR, 5,000-gal bill and affordability, and applies it to every
+  proposed rate in one click (undoable).
+- **Phase-in planner** (Step 6) — spread a large increase over 1–5 equal
+  compounding steps, with revenue, coverage and the typical bill per year.
+- **Bill calculator** (Step 2) — any usage, every class, current vs. proposed.
+- **Undo / redo** for every edit (Ctrl+Z / Ctrl+Shift+Z), per study.
+- **Duplicate a study** to model an alternative, and **Start next year's study**
+  (this year's proposed rates and budget become next year's current).
+- **Guided onboarding** — a five-screen welcome tour, a collapsible coaching
+  panel on every step (what you'll need, tips, the common pitfall), a visual
+  stepper that flags the step with a data problem, and a keyboard-shortcut
+  sheet (press `?`).
+- **Drip, the stick-figure guide** — an optional animated helper who explains
+  each screen, walks over and points at the thing to use ("Show me"), reacts as
+  the numbers change (cheers a fix, celebrates a healthy ratio, sweats when the
+  system goes underwater), carries a different prop on each step, follows the
+  pointer with his eyes, naps when you wander off, and tells terrible water
+  jokes when clicked. Drag him anywhere along the bottom. Toggle him from the
+  header or with the `B` key; he's off by default inside a canvas app and
+  honors the reduced-motion setting.
+- **Redesigned dashboard** — hero, KPI tiles (in progress, healthy proposals,
+  studies needing attention), getting-started cards, search / status filter /
+  sort, and study cards with progress, coverage and issue counts.
+- **Fix:** with the default "Comfortable" text size, current Edge/Chrome (and
+  so Power Apps) left the app filling only ~90% of its container. The zoom
+  compensation now applies only on engines that need it.
+
 - **8-step guided workflow**: System Info → Customer Classes/Rates → Budget →
   Financial Metrics → 5-Year Projection → Scenarios → AI Analysis → Final Report
 - **Usage-distribution revenue engine** — enter how many customers fall at each

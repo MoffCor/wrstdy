@@ -8,6 +8,7 @@ import {
 import { F, $I } from '../components/atoms.jsx';
 import { TierTable } from '../components/TierTable.jsx';
 import { UsageTable } from '../components/UsageTable.jsx';
+import { BillCalculator } from '../components/BillCalculator.jsx';
 import { ConfirmModal } from '../components/ConfirmModal.jsx';
 import { ask, hasApiKey, MODEL_HEAVY } from '../lib/ai.js';
 import { pushToast } from '../components/Toasts.jsx';
@@ -557,6 +558,10 @@ Propose new rates for this class only.`;
                   )}
                 </>
               )}
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <BillCalculator classes={classes} />
             </div>
 
             <div className="card" style={{ marginTop: 14 }}>

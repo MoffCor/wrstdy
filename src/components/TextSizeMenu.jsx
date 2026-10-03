@@ -55,6 +55,28 @@ export function useTextZoom() {
   return useSyncExternalStore(subscribe, getTextZoom, () => DEFAULT);
 }
 
+// Does CSS `zoom` scale percentage sizes on this engine? Older engines
+// (pre-2024 Chromium, Safari) do: a zoomed box at width:100% renders at
+// 100% × zoom and must be shrunk by 1/zoom to fit. Standards-aligned zoom
+// (Chromium 128+, current Edge — what Power Apps runs in — and Firefox)
+// resolves percentages against the container, so the same compensation would
+// leave the app filling only 1/zoom of its space. Probe once and remember.
+let zoomScalesPercent = null;
+export function zoomNeedsCompensation() {
+  if (zoomScalesPercent != null) return zoomScalesPercent;
+  if (typeof document === 'undefined' || !document.body) return true;
+  const outer = document.createElement('div');
+  outer.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;width:100px;height:10px;';
+  const inner = document.createElement('div');
+  inner.style.cssText = 'width:100%;height:10px;zoom:2;';
+  outer.appendChild(inner);
+  document.body.appendChild(outer);
+  const w = inner.getBoundingClientRect().width;
+  outer.remove();
+  zoomScalesPercent = w > 150;
+  return zoomScalesPercent;
+}
+
 /**
  * Kept for the standalone entry point, which calls it before React mounts.
  * It now only primes the store from saved settings — the actual style is
@@ -82,32 +104,18 @@ export function TextSizeMenu() {
   const currentOption = OPTIONS.find(o => Math.abs(o.v - zoom) < 0.01) || { v: zoom, label: `${Math.round(zoom * 100)}%` };
 
   return (
-    <div data-text-size-menu style={{ position: 'relative', marginRight: 6 }}>
+    <div data-text-size-menu style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen(o => !o)}
         title="Text size"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Text size, currently ${currentOption.label}`}
-        style={{
-          background: 'rgba(255,255,255,.08)',
-          color: 'rgba(255,255,255,.9)',
-          border: '1px solid rgba(255,255,255,.25)',
-          borderRadius: 6,
-          padding: '5px 10px',
-          fontFamily: 'var(--font)',
-          fontSize: 11,
-          fontWeight: 500,
-          letterSpacing: '.04em',
-          cursor: 'pointer',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 5,
-        }}
+        className="hdr-btn tsz-btn"
       >
         <span style={{ fontSize: 10 }} aria-hidden="true">A</span>
         <span style={{ fontSize: 14 }} aria-hidden="true">A</span>
-        <span style={{ marginLeft: 2, color: 'rgba(255,255,255,.75)', fontSize: 10 }}>{currentOption.label}</span>
+        <span className="hdr-btn-l tsz-l">{currentOption.label}</span>
       </button>
       {open && (
         <div

@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
-import { STEPS } from '../lib/constants.js';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { STEPS, stepTitle } from '../lib/constants.js';
 import { fmt } from '../lib/calc.js';
 import { statusMeta } from '../lib/status.js';
 import { stepCompletion, needsBackupReminder } from '../lib/progress.js';
-import { validateStudy } from '../lib/validate.js';
+import { validateStudy, summarizeFindings } from '../lib/validate.js';
 import { can } from '../platform/host.js';
 import { ConfirmModal } from './ConfirmModal.jsx';
+import { Menu } from './Menu.jsx';
+import { StepGuide } from './StepGuide.jsx';
 import { Step1 } from '../steps/Step1.jsx';
 import { Step2 } from '../steps/Step2.jsx';
 import { Step3 } from '../steps/Step3.jsx';
@@ -15,7 +17,7 @@ import { Step6 } from '../steps/Step6.jsx';
 import { Step7 } from '../steps/Step7.jsx';
 import { Step8 } from '../steps/Step8.jsx';
 
-// Compact "saved 3s ago" / "saved just now" indicator that re-renders every 10s.
+// Compact "edited 3s ago" indicator that re-renders every 10s.
 function SavedAgo({ iso }) {
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -31,88 +33,116 @@ function SavedAgo({ iso }) {
   else if (seconds < 86400) label = `${Math.round(seconds / 3600)}h ago`;
   else label = fmt.short(iso);
   return (
-    <span className="save-ind saved" title={iso ? `Last change ${fmt.date(iso)}` : undefined}>
-      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+    <span className="save-ind saved" title={`Last change ${fmt.date(iso)}`}>
+      <span className="save-dot" aria-hidden="true" />
       Edited {label}
     </span>
   );
 }
 
-export function Workspace({ study, onUpdate, onDelete, onExport }) {
+// Is the keyboard focus somewhere the user is typing? Step shortcuts must not
+// steal Alt+Arrow from a text field (it moves by word on some platforms).
+const isTyping = (el) => !!el && (el.tagName === 'TEXTAREA' || el.isContentEditable
+  || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(el.type)));
+
+export function Workspace({
+  study, onUpdate, onDelete, onExport, onDuplicate, onRollForward,
+  onUndo, onRedo, canUndo, canRedo, onShowShortcuts, onStepChange,
+}) {
   const [step, setStep] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [showGuide, setShowGuide] = useState(study.status === 'draft');
-  // field('foo', v) sets a single key.
-  // field({ a, b }) patches multiple keys atomically — required when one
-  // handler needs to set two fields back-to-back.
-  // Uses the (id, patch) form of onUpdate so the merge happens against the
-  // LATEST study in App state, not the closure-captured snapshot. This makes
-  // long-running async writes (e.g. AI replies in Step 7) safe to land even
-  // after the user has navigated away and edited other steps in the meantime.
+  const scrollRef = useRef(null);
+
+  // field('foo', v) sets a single key; field({ a, b }) patches several
+  // atomically. Uses the (id, patch) form of onUpdate so the merge happens
+  // against the LATEST study, not this render's snapshot — which is what lets
+  // long-running async writes (AI replies) land safely after other edits.
   const field = (kOrPatch, v) => {
     const patch = typeof kOrPatch === 'string' ? { [kOrPatch]: v } : kOrPatch;
-    const fullPatch = {
+    onUpdate(study.id, {
       ...patch,
-      // Any real edit moves a draft to in-progress — including Step 1, where
-      // most identifying data is entered.
+      // Any real edit moves a draft to in-progress.
       status: patch.status ?? (study.status === 'draft' ? 'in-progress' : study.status),
-    };
-    onUpdate(study.id, fullPatch);
+    });
   };
+
+  const goTo = (n) => setStep(Math.max(0, Math.min(STEPS.length - 1, n)));
+
+  // A new step should start at the top, not wherever the last one was scrolled.
+  useEffect(() => { scrollRef.current?.scrollTo?.({ top: 0 }); onStepChange?.(step); }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Alt+←/→ moves between steps; Alt+1…8 jumps.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
+      if (isTyping(document.activeElement) && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); setStep(s => Math.min(STEPS.length - 1, s + 1)); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); setStep(s => Math.max(0, s - 1)); }
+      else if (/^Digit[1-8]$/.test(e.code)) { e.preventDefault(); setStep(Number(e.code.slice(5)) - 1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const completion = stepCompletion(study);
   const doneCount = completion.filter(Boolean).length;
-
-  // Which steps have a blocking data issue, so the tab bar can point at the
-  // step that needs attention instead of making staff open all eight.
+  const findings = useMemo(() => validateStudy(study), [study]);
+  const summary = summarizeFindings(findings);
+  // Steps with a blocking data issue, so the stepper points at the step that
+  // needs attention instead of making staff open all eight.
   const errorSteps = useMemo(() => {
     const set = new Set();
-    for (const f of validateStudy(study)) if (f.severity === 'error') set.add(f.step);
+    for (const f of findings) if (f.severity === 'error') set.add(f.step);
     return set;
-  }, [study]);
+  }, [findings]);
 
   const stepProps = { study, onField: field };
+  const meta = statusMeta(study.status);
+  const prev = STEPS[step - 1];
+  const next = STEPS[step + 1];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+    <div className="ws">
       <div className="ws-bar no-print">
-        <div style={{ flex: 1, minWidth: 140 }}>
-          <div className="ws-t">{study.name}</div>
+        <div className="ws-id">
+          <div className="ws-t" title={study.name}>{study.name}</div>
           <div className="ws-s">
-            <span>
-              {study.systemInfo.systemName || 'No system'}
-              {study.systemInfo.pwsId ? ` — ${study.systemInfo.pwsId}` : ''}
-            </span>
+            {study.systemInfo.systemName || 'No system named yet'}
+            {study.systemInfo.pwsId ? <> · <span className="mono">{study.systemInfo.pwsId}</span></> : ''}
+            {study.systemInfo.county ? ` · ${study.systemInfo.county} County` : ''}
+            {study.systemInfo.studyYear ? ` · ${study.systemInfo.studyYear}` : ''}
           </div>
         </div>
-        <SavedAgo iso={study.updatedAt} />
-        <button className="btn b-out btn-sm" aria-expanded={showGuide} onClick={() => setShowGuide(v => !v)}>Study guide</button>
-        {/* The backup reminder only makes sense where this browser is the only
-            copy. When the host persists studies (SharePoint via Power Apps),
-            there is nothing for the user to back up. */}
-        {can('localPersistence') && needsBackupReminder(study) && (
-          <button
-            className="btn b-out btn-sm"
-            onClick={() => onExport?.(study.id)}
-            title="This study lives only in this browser's storage. Export a .json backup regularly."
-            style={{ color: '#92400e', borderColor: '#fde68a', background: '#fffbeb' }}
-          >
-            ⚠ Not backed up — Export
-          </button>
-        )}
-        <span className={'bs ' + statusMeta(study.status).badgeClass}>
-          {statusMeta(study.status).label}
-        </span>
-        {onDelete && (
-          <button
-            className="btn b-del btn-sm"
-            onClick={() => setConfirmDelete(true)}
-            aria-label={`Delete study ${study.name}`}
-          >
-            Delete
-          </button>
-        )}
+        <div className="ws-actions">
+          <SavedAgo iso={study.updatedAt} />
+          <div className="btn-group" role="group" aria-label="History">
+            <button className="btn b-out btn-sm icon-only" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo last change">↶</button>
+            <button className="btn b-out btn-sm icon-only" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
+          </div>
+          {/* The backup reminder only matters where this browser holds the only
+              copy; a host that persists studies has nothing to back up. */}
+          {can('localPersistence') && needsBackupReminder(study) && (
+            <button className="btn btn-sm b-warn" onClick={() => onExport?.(study.id)} title="This study lives only in this browser's storage. Export a .json backup regularly.">
+              ⚠ Back up
+            </button>
+          )}
+          <span className={'bs ' + meta.badgeClass}>{meta.label}</span>
+          <Menu
+            label="⋯"
+            ariaLabel="Study actions"
+            buttonClass="btn b-out btn-sm icon-only"
+            items={[
+              onDuplicate && { icon: '⧉', label: 'Duplicate study', hint: 'Model an alternative without touching this one', onClick: () => onDuplicate(study.id) },
+              onRollForward && { icon: '⏭', label: "Start next year's study", hint: "This year's proposed rates become next year's current", onClick: () => onRollForward(study.id) },
+              onExport && { icon: '⤓', label: 'Export study (.json)', hint: 'Backup or move to another computer', onClick: () => onExport(study.id) },
+              onShowShortcuts && { icon: '⌨', label: 'Keyboard shortcuts', onClick: onShowShortcuts },
+              onDelete && { divider: true },
+              onDelete && { icon: '🗑', label: 'Delete study', danger: true, onClick: () => setConfirmDelete(true) },
+            ]}
+          />
+        </div>
       </div>
+
       {confirmDelete && (
         <ConfirmModal
           title="Delete this study?"
@@ -131,89 +161,83 @@ export function Workspace({ study, onUpdate, onDelete, onExport }) {
           onCancel={() => setConfirmDelete(false)}
         />
       )}
-      <div className="tabs no-print" role="tablist" aria-label="Rate study steps">
-        {STEPS.map(s => {
-          const flagged = errorSteps.has(s.id);
-          const done = completion[s.id];
-          const hint = flagged
-            ? 'Needs attention — a data check failed on this step'
-            : done ? 'Has data entered' : 'No data entered yet';
-          return (
-            <button
-              key={s.id}
-              role="tab"
-              aria-selected={step === s.id}
-              tabIndex={step === s.id ? 0 : -1}
-              onKeyDown={e => {
-                const next = e.key === 'ArrowRight' ? (step + 1) % STEPS.length : e.key === 'ArrowLeft' ? (step + STEPS.length - 1) % STEPS.length : e.key === 'Home' ? 0 : e.key === 'End' ? STEPS.length - 1 : null;
-                if (next !== null) { e.preventDefault(); setStep(next); e.currentTarget.parentElement.children[next].focus(); }
-              }}
-              className={'tab' + (step === s.id ? ' on' : '')}
-              onClick={() => setStep(s.id)}
-              title={hint}
-            >
-              {flagged
-                ? <span className="tab-flag" aria-hidden="true">!</span>
-                : done && <span className="tab-done" aria-hidden="true">✓</span>}
-              {s.l}
-              <span className="sr-only"> — {hint}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div
-        className="ws-progress no-print"
-        role="progressbar"
-        aria-valuenow={doneCount}
-        aria-valuemin={0}
-        aria-valuemax={STEPS.length}
-        aria-label={`${doneCount} of ${STEPS.length} steps have data`}
-      >
-        <div className="ws-progress-track" aria-hidden="true">
-          <div className="ws-progress-fill" style={{ width: `${(doneCount / STEPS.length) * 100}%` }} />
-        </div>
-        <span className="ws-progress-lbl" aria-hidden="true">{doneCount} of {STEPS.length} steps have data</span>
-        {errorSteps.size > 0 && (
-          <button
-            className="btn b-out btn-xs"
-            style={{ marginLeft: 'auto', color: '#991b1b', borderColor: '#fca5a5', background: '#fef2f2' }}
-            onClick={() => setStep(7)}
-            title="Open the Data Check panel in the Final Report"
-          >
-            ! {errorSteps.size} step{errorSteps.size === 1 ? '' : 's'} need attention
-          </button>
-        )}
-      </div>
-      <div className="ws-sc" role="tabpanel" aria-label={STEPS[step]?.l}>
-        {showGuide && <div className="study-guide no-print">
-          <div><span className="guide-eyebrow">CNO INTERNAL · RATE STUDY WORKSPACE</span>
-            <h2>Build a recommendation you can explain.</h2>
-            <p>Work from a complete billing year, document assumptions, and compare proposed bills with the system’s cash needs.</p></div>
-          <div className="guide-grid">
-            <div><strong>1. Gather evidence</strong><p>Billing register, customer counts, adopted rates, operating budget, debt schedule, reserve balances, and service-area income source.</p></div>
-            <div><strong>2. Model the change</strong><p>Use monthly averages from 12 months. Enter customer usage groups for tiered rates. A zero-rate first block can represent gallons included in the base charge.</p></div>
-            <div><strong>3. Review with the system</strong><p>Check early cash shortfalls, customer bill impacts, and all data findings. Record staff assumptions and board decisions in report notes.</p></div>
-          </div>
-          <p className="guide-foot">Cash-budget basis: the depreciation line is an actual asset-replacement reserve transfer. Beginning fund balance excludes restricted reserves; avoid counting the same capital funding twice. AI analysis is optional.</p>
-          <button className="btn b-teal btn-sm" onClick={() => setShowGuide(false)}>Continue study</button>
-        </div>}
 
-        {step === 0 && <Step1 {...stepProps} />}
-        {step === 1 && <Step2 {...stepProps} />}
-        {step === 2 && <Step3 {...stepProps} />}
-        {step === 3 && <Step4 study={study} onGoToStep={setStep} />}
-        {step === 4 && <Step5 {...stepProps} />}
-        {step === 5 && <Step6 {...stepProps} />}
-        {step === 6 && <Step7 {...stepProps} />}
-        {step === 7 && <Step8 {...stepProps} onGoToStep={setStep} />}
+      <nav className="stepper no-print" aria-label="Rate study steps">
+        <div className="stepper-track" role="tablist">
+          {STEPS.map(s => {
+            const flagged = errorSteps.has(s.id);
+            const done = completion[s.id];
+            const state = step === s.id ? 'on' : flagged ? 'flag' : done ? 'done' : '';
+            const hint = flagged ? 'needs attention' : done ? 'has data' : 'not started';
+            return (
+              <button
+                key={s.id}
+                role="tab"
+                aria-selected={step === s.id}
+                tabIndex={step === s.id ? 0 : -1}
+                className={'stp ' + state}
+                onClick={() => goTo(s.id)}
+                onKeyDown={e => {
+                  const n = e.key === 'ArrowRight' ? (step + 1) % STEPS.length
+                    : e.key === 'ArrowLeft' ? (step + STEPS.length - 1) % STEPS.length
+                    : e.key === 'Home' ? 0 : e.key === 'End' ? STEPS.length - 1 : null;
+                  if (n !== null) { e.preventDefault(); goTo(n); e.currentTarget.parentElement.children[n]?.focus(); }
+                }}
+                title={`${stepTitle(s)} — ${hint}`}
+              >
+                <span className="stp-dot" aria-hidden="true">
+                  {flagged ? '!' : done && step !== s.id ? '✓' : s.id + 1}
+                </span>
+                <span className="stp-label" aria-hidden="true">{s.short}</span>
+                <span className="sr-only">{s.l} — {hint}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="stepper-meta">
+          <div className="ws-progress-track" aria-hidden="true">
+            <div className="ws-progress-fill" style={{ width: `${(doneCount / STEPS.length) * 100}%` }} />
+          </div>
+          <span className="ws-progress-lbl" role="status">{doneCount} of {STEPS.length} steps complete</span>
+          {summary.total > 0 ? (
+            <button
+              className={'health-chip ' + (summary.error ? 'bad' : 'warn')}
+              onClick={() => goTo(7)}
+              title="Open the Data Check in the Final Report"
+            >
+              {summary.error ? `${summary.error} to fix` : `${summary.warn + summary.info} to review`}
+            </button>
+          ) : (
+            <span className="health-chip ok">✓ Data check clear</span>
+          )}
+        </div>
+      </nav>
+
+      <div className="ws-sc" ref={scrollRef} role="tabpanel" aria-label={stepTitle(STEPS[step])}>
+        <div className="ws-inner">
+          <StepGuide step={step} />
+          {step === 0 && <Step1 {...stepProps} />}
+          {step === 1 && <Step2 {...stepProps} />}
+          {step === 2 && <Step3 {...stepProps} />}
+          {step === 3 && <Step4 {...stepProps} onGoToStep={goTo} />}
+          {step === 4 && <Step5 {...stepProps} />}
+          {step === 5 && <Step6 {...stepProps} />}
+          {step === 6 && <Step7 {...stepProps} />}
+          {step === 7 && <Step8 {...stepProps} onGoToStep={goTo} />}
+        </div>
       </div>
+
       <div className="ws-nv no-print">
-        <button className="btn b-out btn-sm" onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0}>← Previous</button>
+        <button className="btn b-out btn-sm nav-btn" onClick={() => goTo(step - 1)} disabled={!prev}>
+          ← <span className="nav-lbl">{prev ? stepTitle(prev) : 'Previous'}</span>
+        </button>
         <span className="ws-ni">
           Step {step + 1} of {STEPS.length}
-          <span className="sr-only">: {STEPS[step]?.l}</span>
+          <span className="kbd-hint"> · <kbd>Alt</kbd>+<kbd>→</kbd></span>
         </span>
-        <button className="btn b-teal btn-sm" onClick={() => setStep(s => Math.min(STEPS.length - 1, s + 1))} disabled={step === STEPS.length - 1}>Next →</button>
+        <button className="btn b-teal btn-sm nav-btn" onClick={() => goTo(step + 1)} disabled={!next}>
+          <span className="nav-lbl">{next ? stepTitle(next) : 'Next'}</span> →
+        </button>
       </div>
     </div>
   );

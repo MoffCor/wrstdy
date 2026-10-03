@@ -163,6 +163,106 @@ export function newStudy(name = '') {
   return normalizeStudy({ name });
 }
 
+const deepClone = (v) => JSON.parse(JSON.stringify(v ?? null));
+
+/**
+ * Copy a study under a new id — for "what if" variants of the same system.
+ * The copy starts as a draft with no analysis history (the analysis described
+ * the original's numbers, not the copy's) and no backup timestamp.
+ */
+export function duplicateStudy(study, { name } = {}) {
+  const copy = deepClone(study) || {};
+  const now = new Date().toISOString();
+  return normalizeStudy({
+    ...copy,
+    id: undefined,
+    name: name || `${copy.name || 'Rate Study'} (Copy)`,
+    status: 'draft',
+    createdAt: now,
+    updatedAt: now,
+    lastExportedAt: null,
+    aiHistory: [],
+    aiAnalysis: { content: '', generatedAt: '' },
+  });
+}
+
+/**
+ * Start next year's study from this one.
+ *
+ * Rate studies are annual. Next year, the rates this study PROPOSED are the
+ * rates the system CHARGES, and this year's proposed budget is next year's
+ * starting point. Rolling forward copies proposed → current for every class
+ * and for the budget, seeds the new proposed side from the same values (ready
+ * to edit), bumps the study year, and advances the forecast: the fund balance
+ * projected for the end of year 1 is a reasonable opening balance for the new
+ * study, but it is an estimate, so it is flagged for staff to replace with the
+ * audited figure.
+ */
+export function rollForwardStudy(study, { fy1EndingBalance } = {}) {
+  const src = normalizeStudy(deepClone(study) || {});
+  const year = parseInt(src.systemInfo?.studyYear, 10);
+  const nextYear = Number.isFinite(year) ? year + 1 : new Date().getFullYear() + 1;
+  const classes = src.classes.map(c => ({
+    ...c,
+    cur: deepClone(c.prop),
+    prop: deepClone(c.prop),
+  }));
+  const forecast = {
+    ...src.forecast,
+    beginFundBalance: Number.isFinite(fy1EndingBalance)
+      ? String(Math.round(fy1EndingBalance))
+      : src.forecast.beginFundBalance,
+    // Year 1's scheduled debt and one-time items are now history.
+    debtService: [...src.forecast.debtService.slice(1), ''],
+    knownItems: src.forecast.knownItems.map(it => ({
+      label: it.label,
+      vals: [...(it.vals || []).slice(1), ''],
+    })),
+  };
+  const now = new Date().toISOString();
+  return normalizeStudy({
+    ...src,
+    id: undefined,
+    name: `${src.systemInfo?.systemName || src.name || 'Rate Study'} — Rate Study ${nextYear}`,
+    status: 'draft',
+    createdAt: now,
+    updatedAt: now,
+    lastExportedAt: null,
+    systemInfo: { ...src.systemInfo, studyYear: String(nextYear) },
+    demographics: { ...src.demographics, effectiveDate: '' },
+    classes,
+    curBudget: deepClone(src.propBudget),
+    propBudget: deepClone(src.propBudget),
+    forecast,
+    activeScenario: undefined,
+    aiHistory: [],
+    aiAnalysis: { content: '', generatedAt: '' },
+    reportNotes: '',
+    rolledForwardFrom: { id: src.id, name: src.name, at: now, openingBalanceEstimated: Number.isFinite(fy1EndingBalance) },
+  });
+}
+
+// ─── Undo history ────────────────────────────────────────────────────────────
+// Edits arrive per keystroke. Recording each one would make Ctrl+Z undo a
+// single character; coalescing edits that land within UNDO_COALESCE_MS of the
+// previous one makes an undo step correspond to "what I just typed into that
+// field" — the unit people expect.
+export const UNDO_LIMIT = 60;
+export const UNDO_COALESCE_MS = 900;
+
+/**
+ * Record `snapshot` (the study BEFORE an edit) on an undo stack.
+ * @returns the new stack (the input is not mutated)
+ */
+export function pushUndo(stack = [], snapshot, at = Date.now(), lastAt = 0) {
+  if (!snapshot) return stack;
+  // Within the coalescing window the earlier snapshot already represents the
+  // state before this burst of typing — keep it, drop this one.
+  if (stack.length > 0 && at - lastAt < UNDO_COALESCE_MS) return stack;
+  const next = [...stack, snapshot];
+  return next.length > UNDO_LIMIT ? next.slice(next.length - UNDO_LIMIT) : next;
+}
+
 // The Step 7 conversation is stored on the study and travels with it — into
 // localStorage, into the .json export, and (in Power Apps) into the SharePoint
 // payload. Each analysis reply runs 3–8 KB, so an unbounded history is the one

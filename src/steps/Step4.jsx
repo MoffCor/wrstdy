@@ -1,6 +1,7 @@
 import { defBudget } from '../lib/state.js';
 import { validateStudy, summarizeFindings } from '../lib/validate.js';
 import { FindingsList } from '../components/FindingsList.jsx';
+import { RateDesignPanel } from '../components/RateDesignPanel.jsx';
 import {
   budgetTotal, totalRevenue, classMonthlyIncome, hasUsageDistribution,
   operatingRatio, affordabilityIndex, debtToIncome, baseCoverage, debtServiceCoverage,
@@ -15,7 +16,7 @@ function StatusPill({ ok, label }) {
 // ok flag for a nullable metric: null in → null out (renders neutral).
 const okIf = (v, pred) => (v == null ? null : pred(v));
 
-export function Step4({ study, onGoToStep }) {
+export function Step4({ study, onField, onGoToStep }) {
   const findings = validateStudy(study);
   const classes = study.classes || [];
   const mhi = study.demographics?.medianMonthlyHHI;
@@ -143,6 +144,8 @@ export function Step4({ study, onGoToStep }) {
           </table>
         </div>
       </div>
+
+      {onField && <RateDesignPanel study={study} onField={onField} />}
 
       <div className="card" style={{ borderLeft: '4px solid var(--teal)' }}>
         <div className="sh">True Cost of Service</div>
