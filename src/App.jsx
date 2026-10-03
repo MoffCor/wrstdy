@@ -21,6 +21,7 @@ import { ShortcutsModal } from './components/StepGuide.jsx';
 import { StickBuddy } from './components/StickBuddy.jsx';
 import { keyEventIsOurs, isTypingTarget } from './components/keys.js';
 import { BUDDY_SETTING } from './lib/buddy.js';
+import { buddyEvent } from './lib/buddyBus.js';
 
 // Writes are batched: a keystroke in a budget field would otherwise mean a
 // full localStorage serialize (standalone) or a notifyOutputChanged round trip
@@ -64,12 +65,16 @@ export default function App() {
     return v ? v === 'on' : can('localPersistence');
   });
   const [step, setStep] = useState(0);
+  // Turning Drip off doesn't make him vanish: he walks out through his door
+  // first (`buddyLeaving` keeps him mounted until he reports he's gone).
+  const [buddyLeaving, setBuddyLeaving] = useState(false);
   const toggleBuddy = (on) => {
     const next = typeof on === 'boolean' ? on : !buddyOn;
     if (next === buddyOn) return;
     setBuddyOn(next);
+    setBuddyLeaving(!next);
     setSetting(BUDDY_SETTING, next ? 'on' : 'off');
-    pushToast(next ? 'Drip is back! 👋' : 'Drip is taking a break. Bring him back with the 🕺 button or the B key.', { kind: 'ok' });
+    if (!next) pushToast('Drip is taking a break. Bring him back with the 🕺 button or the B key.', { kind: 'ok' });
   };
   const fileRef = useRef(null);
   const rootRef = useRef(null);
@@ -167,11 +172,12 @@ export default function App() {
   // Close mobile sidebar when a study is selected
   useEffect(() => { setSidebarOpen(false); }, [activeId]);
 
-  const create = (s) => {
+  const create = (s, buddy = 'created') => {
     setStudies(p => [s, ...p]);
     setActiveId(s.id);
     setShowNew(false);
     pushToast(`Created "${s.name}"`);
+    buddyEvent(buddy);
   };
 
   // Spawn a new study pre-populated from a known PWS record (clicked on the
@@ -258,8 +264,8 @@ export default function App() {
     setHistoryTick(t => t + 1);
     return true;
   };
-  const undo = (id) => { if (travel(id, 'undo')) pushToast('Undone', { kind: 'ok', duration: 1500 }); };
-  const redo = (id) => { if (travel(id, 'redo')) pushToast('Redone', { kind: 'ok', duration: 1500 }); };
+  const undo = (id) => { if (travel(id, 'undo')) { pushToast('Undone', { kind: 'ok', duration: 1500 }); buddyEvent('undo'); } };
+  const redo = (id) => { if (travel(id, 'redo')) { pushToast('Redone', { kind: 'ok', duration: 1500 }); buddyEvent('redo'); } };
 
   const update = (idOrStudy, patch) => {
     recordHistory(typeof idOrStudy === 'string' ? idOrStudy : idOrStudy?.id);
@@ -278,13 +284,13 @@ export default function App() {
     const s = studies.find(x => x.id === id);
     setStudies(p => p.filter(x => x.id !== id));
     if (activeId === id) setActiveId(null);
-    if (s) pushToast(`Deleted "${s.name}"`, { kind: 'warn' });
+    if (s) { pushToast(`Deleted "${s.name}"`, { kind: 'warn' }); buddyEvent('deleted'); }
   };
 
   const duplicate = (id) => {
     const s = latestRef.current.find(x => x.id === id);
     if (!s || isReadOnly()) return;
-    create(duplicateStudy(s));
+    create(duplicateStudy(s), 'duplicated');
   };
 
   const rollForward = (id) => {
@@ -294,7 +300,7 @@ export default function App() {
     // year's opening balance — flagged as an estimate in the new study.
     const fy1 = calc5Yr(s.classes, s.curBudget, s.propBudget, s.forecast).propFBArr[0];
     const next = rollForwardStudy(s, { fy1EndingBalance: fy1 });
-    create(next);
+    create(next, 'rolled');
     pushToast(
       `Started ${next.systemInfo.studyYear}: last year's proposed rates and budget are now "current". The opening fund balance is a projection — replace it with the audited figure in Step 5.`,
       { kind: 'warn', duration: 9000 },
@@ -344,6 +350,7 @@ export default function App() {
     });
     pushToast(result.message, { kind: result.ok ? 'ok' : 'err' });
     if (!result.ok) return;
+    buddyEvent('export');
     // Export is a metadata action, not a content edit — write lastExportedAt
     // directly instead of going through update(), which would also bump
     // updatedAt to "now" and make it look like the study was just changed.
@@ -465,11 +472,12 @@ export default function App() {
         />
       )}
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
-      {buddyOn && (active || showChrome) && (
+      {(buddyOn || buddyLeaving) && (active || showChrome) && (
         <StickBuddy
-          key={active?.id || 'dashboard'}
           context={active ? step : 'dashboard'}
           study={active}
+          leaving={!buddyOn}
+          onGone={() => setBuddyLeaving(false)}
           onHide={() => toggleBuddy(false)}
         />
       )}

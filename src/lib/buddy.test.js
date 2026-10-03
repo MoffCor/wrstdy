@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BUDDY_TIPS, BUDDY_PROPS, BUDDY_JOKES, buddyOpening, buddyAlerts, buddyMetrics,
-  buddyReaction, greeting, shuffled, pick,
+  buddyReaction, greeting, shuffled, pick, BUDDY_EVENTS, seasonal,
 } from './buddy.js';
+import { buddyEvent, onBuddyEvent } from './buddyBus.js';
 import { makeSampleStudy } from './sample-study.js';
 import { newStudy } from './state.js';
 
@@ -41,7 +42,10 @@ test('opening keeps the lead tip first after alerts; dashboard leads with hello'
   assert.equal(open.length, buddyAlerts(makeSampleStudy()).length + BUDDY_TIPS[3].length);
   const dash = buddyOpening('dashboard', null, { now: new Date(2026, 9, 6, 10), rnd: () => 0 });
   assert.match(dash[0].say, /morning/i);
-  assert.equal(dash[1], BUDDY_TIPS.dashboard[0]);
+  assert.match(dash[1].say, /Spooky/, 'October adds a seasonal line');
+  assert.equal(dash[2], BUDDY_TIPS.dashboard[0]);
+  const may = buddyOpening('dashboard', null, { now: new Date(2026, 4, 6, 10), rnd: () => 0 });
+  assert.equal(may[1], BUDDY_TIPS.dashboard[0], 'no seasonal line in May');
 });
 
 test('alerts flag a system spending more than it earns', () => {
@@ -73,4 +77,23 @@ test('reactions: priorities and thresholds', () => {
   // Clean data outranks a simultaneous ratio change.
   assert.equal(buddyReaction(base, { errors: 0, or: 1.4, done: 3 }).kind, 'clean');
   assert.equal(buddyReaction(base, { ...base, or: 1.3 }).pose, 'celebrate');
+});
+
+test('every app event has a pose and lines', () => {
+  for (const [k, ev] of Object.entries(BUDDY_EVENTS)) {
+    assert.equal(typeof ev.pose, 'string', k);
+    assert.ok(ev.lines.length >= 2, k);
+  }
+  assert.equal(seasonal(new Date(2026, 9, 1)).badge, 'pumpkin');
+  assert.equal(seasonal(new Date(2026, 3, 1)).badge, null);
+});
+
+test('the event bus delivers to subscribers and survives a throwing one', () => {
+  const got = [];
+  const off1 = onBuddyEvent(() => { throw new Error('boom'); });
+  const off2 = onBuddyEvent(e => got.push(e));
+  buddyEvent('export', { id: 'x' });
+  off1(); off2();
+  buddyEvent('undo');
+  assert.deepEqual(got, [{ type: 'export', id: 'x' }]);
 });

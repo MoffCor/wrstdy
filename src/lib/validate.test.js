@@ -164,3 +164,61 @@ test('finding ids are unique within one run', () => {
   const all = ids(validateStudy(newStudy('Blank')));
   assert.equal(new Set(all).size, all.length, 'duplicate finding ids would break React keys');
 });
+
+test('malformed fund balances, one-time items, MHI, and population are visible findings', () => {
+  // "18k" in a one-time item used to read as $0 with no finding — an $18,000
+  // meter program vanished from the projection silently.
+  const study = makeSampleStudy();
+  study.forecast.knownItems[0].vals[1] = '18k';
+  study.forecast.beginFundBalance = '12.5k';
+  study.forecast.targetFundBalance = 'fifty thousand';
+  study.demographics.medianMonthlyHHI = '3,650/mo';
+  study.systemInfo.populationServed = 'about 650';
+  const findings = validateStudy(study);
+  const numeric = findings.filter(f => f.id.startsWith('numeric-'));
+  assert.ok(numeric.some(f => f.step === 4 && /one-time item 1 \(Meter replacement program\) FY2/.test(f.title)));
+  assert.ok(numeric.some(f => f.step === 4 && /beginning fund balance/.test(f.title)));
+  assert.ok(numeric.some(f => f.step === 4 && /target fund balance/.test(f.title)));
+  assert.ok(numeric.some(f => f.step === 0 && /median household income/.test(f.title)));
+  assert.ok(numeric.some(f => f.step === 0 && /population served/.test(f.title)));
+  // Negative opening cash and grant offsets are legitimate.
+  const ok = makeSampleStudy();
+  ok.forecast.beginFundBalance = '(2,500)';
+  ok.forecast.knownItems[1].vals[1] = '$ (9,000)';
+  assert.ok(!validateStudy(ok).some(f => f.id.startsWith('numeric-')));
+});
+
+test('the new numeric checks raise nothing on the sample or a blank study', () => {
+  for (const study of [makeSampleStudy(), newStudy('Blank')]) {
+    assert.ok(!validateStudy(study).some(f => f.id.startsWith('numeric-')));
+  }
+  assert.deepEqual(validateStudy(makeSampleStudy()), []);
+});
+
+test('DSCR finding uses the same 1.25 planning target as the scorecard and reports', () => {
+  // The check used to fire only below 1.15, so a 1.20 DSCR was a red
+  // "Thin margin" on the scorecard and in the PDF with no data-check finding.
+  const study = makeSampleStudy();
+  // Proposed sample: revenue 19,877/mo, O&M 13,150/mo → 6,727 for debt.
+  study.propBudget.loa = { newLoan: '4556', owrb: '1050', bank: '0', other: '' };
+  const dscr = find(validateStudy(study), 'dscr-low');
+  assert.ok(dscr, 'DSCR ≈ 1.20 must be flagged');
+  assert.equal(dscr.severity, 'warn');
+  assert.match(dscr.detail, /1\.20.*1\.25/);
+  study.propBudget.loa.newLoan = '4300'; // DSCR ≈ 1.26
+  assert.ok(!has(validateStudy(study), 'dscr-low'));
+});
+
+test('findings about an unnamed custom class name it by id', () => {
+  const study = makeSampleStudy();
+  const c5 = study.classes.find(c => c.id === 'c5');
+  c5.enabled = true;
+  c5.cur = { customers: 'abc', gallonsSold: '', minCharge: '10', tiers: [] };
+  const f = validateStudy(study).find(x => x.id.startsWith('numeric-1-c5 cur customers'));
+  assert.ok(f, 'label falls back to the class id instead of a leading blank');
+});
+
+test('missing-MHI finding does not claim grant eligibility', () => {
+  const f = find(validateStudy(newStudy('Blank')), 'mhi-missing');
+  assert.doesNotMatch(f.detail, /eligib/i);
+});

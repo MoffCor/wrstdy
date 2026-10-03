@@ -5,19 +5,40 @@
 // accounting form "(1,234.50)" for a negative all show up in practice.
 // `parseFloat('1,234')` returns 1, which silently turned a $1,234 line item
 // into $1, so strip currency punctuation before parsing and honor parentheses
-// as a negative sign. Anything still unparseable is 0.
-export const nv = (v) => {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+// as a negative sign. Excel's Accounting format puts the dollar sign OUTSIDE
+// the parentheses ("$ (1,234.50)") and shows zero as "$ -", so the currency
+// punctuation is stripped before the parenthesis check, not after — otherwise
+// a pasted accounting negative parsed as 0. Returns NaN when unparseable;
+// validate.js uses this directly so its "invalid number" findings agree
+// exactly with what nv() treats as a number.
+export function parseAmount(v) {
+  if (typeof v === 'number') return v;
   if (v == null) return 0;
-  let s = String(v).trim();
-  if (!s) return 0;
+  let s = String(v).replace(/[$\s,]/g, '');
   let sign = 1;
   // Accounting negatives: (1,234.50) === -1234.50
   if (s.startsWith('(') && s.endsWith(')')) { sign = -1; s = s.slice(1, -1); }
-  s = s.replace(/[$\s,]/g, '');
+  if (s === '-') return 0; // accounting-format zero
   const n = Number(s);
-  return Number.isFinite(n) ? sign * n : 0;
+  return n === 0 ? 0 : sign * n;
+}
+
+// Anything still unparseable is 0.
+export const nv = (v) => {
+  const n = parseAmount(v);
+  return Number.isFinite(n) ? n : 0;
 };
+
+// Split one pasted bulk-import row into cells. Rows copied from Excel are
+// tab-separated and keep their thousands separators
+// ("Residential\t240\t1,080,000\t18.00"); splitting those on commas as well
+// shifted every column — 1,080,000 gallons became 1 gallon and "080" landed in
+// the base charge. A row containing a tab is split on tabs only; commas
+// separate columns only in a plain comma-separated row.
+export function splitImportRow(row) {
+  const s = String(row ?? '');
+  return s.split(s.includes('\t') ? '\t' : ',').map(c => c.trim());
+}
 
 // Normalize a tier list for billing: numeric breakpoints, sorted ascending,
 // non-increasing/zero breakpoints dropped. Unsorted or duplicate breakpoints

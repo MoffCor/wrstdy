@@ -105,11 +105,25 @@ packaging, adding it to an app).
   system goes underwater), carries a different prop on each step, follows the
   pointer with his eyes, naps when you wander off, and tells terrible water
   jokes when clicked. Drag him anywhere along the bottom. Toggle him from the
-  header or with the `B` key; he's off by default inside a canvas app and
-  honors the reduced-motion setting.
+  header or with the `B` key; he walks out through a door at the side of the
+  app when you turn him off (and back in when you turn him on), takes the
+  occasional coffee run, rewinds on undo, throws a paper airplane on export,
+  sheds a tear when a study is deleted, takes notes while you type, meditates,
+  and hands out a "grand tour" achievement for visiting all eight steps. He's
+  off by default inside a canvas app and honors the reduced-motion setting.
 - **Redesigned dashboard** — hero, KPI tiles (in progress, healthy proposals,
   studies needing attention), getting-started cards, search / status filter /
   sort, and study cards with progress, coverage and issue counts.
+- **Data fixes:** Excel accounting negatives (`$ (1,234.50)`) no longer read
+  as $0; a cleared scenario multiplier no longer zeroes that class in the
+  PDF/Word report; imported classes without an id are kept; Excel paste with
+  thousands separators no longer shifts columns; the DSCR data check uses the
+  scorecard's 1.25 target; malformed fund-balance, one-time-item, MHI and
+  population entries are flagged instead of silently read as $0; Rate Design
+  always lands at or above its target; the phase-in bill tracks the actual
+  proposed bill; roll-forward keeps current rates for classes with no
+  proposed side; the AI prompt no longer claims EPA affordability, grant
+  eligibility, or covenant compliance.
 - **Fix:** with the default "Comfortable" text size, current Edge/Chrome (and
   so Power Apps) left the app filling only ~90% of its container. The zoom
   compensation now applies only on engines that need it.

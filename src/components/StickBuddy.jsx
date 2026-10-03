@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BUDDY_JOKES, BUDDY_PROPS, IDLE_QUIPS, WAKE_LINES, DRAG_LINES, DIZZY_LINES,
-  buddyOpening, buddyMetrics, buddyReaction, pick,
+  BUDDY_EVENTS, BYE_LINES, BACK_LINES, COFFEE_LINES, COFFEE_BACK_LINES, TYPING_LINES,
+  HOVER_LINES, MEDITATE_LINES, WATCH_LINES, TOUR_DONE_LINE,
+  buddyOpening, buddyMetrics, buddyReaction, pick, seasonal,
 } from '../lib/buddy.js';
+import { onBuddyEvent } from '../lib/buddyBus.js';
 
 const W = 64;            // rendered figure width (px)
 const MARGIN = 14;       // keep-out from the app's edges
@@ -14,9 +17,11 @@ const POSE_MS = {
   wave: 1600, jump: 900, flip: 950, spin: 1100, dance: 2600, fidget: 1700, think: 2400,
   look: 2200, tap: 2200, sit: 7000, whistle: 3200, celebrate: 2400, worry: 3000,
   thumbs: 1700, dizzy: 2800, land: 480, wake: 1000, moonwalk: 2400,
+  rewind: 1100, throw: 1100, sad: 3400, scribble: 2200, shy: 1500, meditate: 5200,
+  kick: 1400, watch: 2400, emerge: 700, exit: 800,
 };
 const TRICKS = ['jump', 'flip', 'spin', 'dance', 'moonwalk'];
-const IDLES = ['fidget', 'think', 'look', 'tap', 'sit', 'whistle', 'look', 'tap'];
+const IDLES = ['fidget', 'think', 'look', 'tap', 'sit', 'whistle', 'look', 'tap', 'meditate', 'kick', 'watch', 'coffee'];
 const RESTING = new Set(['idle', 'juggle']);
 
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -92,8 +97,30 @@ function Prop({ kind }) {
   }
 }
 
+// A small seasonal touch on the hard hat.
+function Badge({ kind }) {
+  switch (kind) {
+    case 'pumpkin': return (
+      <g className="b-badge">
+        <ellipse cx="38" cy="12.6" rx="3" ry="2.5" className="b-pumpkin" />
+        <path d="M38 10.2 q.4 -1.4 1.4 -1.8" className="b-stem" />
+      </g>);
+    case 'snow': return (
+      <g className="b-badge">{[[24, 13], [29, 9.5], [35, 9.2], [40, 12.5]].map(([cx, cy]) => <circle key={cx} cx={cx} cy={cy} r="1.3" className="b-snow" />)}</g>);
+    case 'party': return <path className="b-badge b-party" d="M38 3 l1.2 3 l3 .4 l-2.3 2 l.7 3 l-2.6 -1.6 l-2.6 1.6 l.7 -3 l-2.3 -2 l3 -.4z" />;
+    case 'sun': return (
+      <g className="b-badge">
+        <rect x="24.5" y="20.5" width="6.5" height="4.2" rx="1.4" className="b-shades" />
+        <rect x="33" y="20.5" width="6.5" height="4.2" rx="1.4" className="b-shades" />
+        <path d="M31 22 h2" className="b-shades-bridge" />
+      </g>);
+    default: return null;
+  }
+}
+
 function Face({ expr }) {
   const eyes = {
+    calm: <><path d="M26 23.5 q2 1.5 4 0" /><path d="M34 23.5 q2 1.5 4 0" /></>,
     sleepy: <><path d="M26 23.5 q2 1.5 4 0" /><path d="M34 23.5 q2 1.5 4 0" /></>,
     excited: <><path d="M26 24 q2 -3 4 0" /><path d="M34 24 q2 -3 4 0" /></>,
     dizzy: <><path d="M26.5 21.5 l3 3 M29.5 21.5 l-3 3" /><path d="M34.5 21.5 l3 3 M37.5 21.5 l-3 3" /></>,
@@ -102,6 +129,8 @@ function Face({ expr }) {
     happy: 'M27.5 28 q4.5 4 9 0',
     excited: 'M27 27.5 q5 6.5 10 0 z',
     worried: 'M27.5 30.5 q4.5 -3.5 9 0',
+    sad: 'M27.5 31 q4.5 -4 9 0',
+    calm: 'M28.5 28.5 q3.5 2.5 7 0',
     neutral: 'M28.5 29.5 h7',
     sleepy: 'M30.5 29.5 q1.5 1.2 3 0',
     dizzy: 'M27 29.5 q1.5 -2 3 0 t3 0 t3 0',
@@ -113,7 +142,8 @@ function Face({ expr }) {
       {eyes
         ? <g className="b-eyes-alt">{eyes}</g>
         : <g className="b-eyes"><g className="b-pupils"><circle cx="28" cy="23" r="1.7" /><circle cx="36" cy="23" r="1.7" /></g></g>}
-      {expr === 'worried' && <path className="b-brows" d="M25.5 19.5 l4 -1.4 M38.5 19.5 l-4 -1.4" />}
+      {(expr === 'worried' || expr === 'sad') && <path className="b-brows" d="M25.5 19.5 l4 -1.4 M38.5 19.5 l-4 -1.4" />}
+      {expr === 'sad' && <path className="b-tear" d="M27 26 c0 0 -1.6 2.4 -1.6 3.4 a1.6 1.6 0 0 0 3.2 0 c0 -1 -1.6 -3.4 -1.6 -3.4z" />}
       <path className={'b-mouth' + (expr === 'excited' ? ' open' : '')} d={mouth} />
       {(expr === 'happy' || expr === 'excited') && <><circle className="b-blush" cx="24.5" cy="27" r="1.8" /><circle className="b-blush" cx="39.5" cy="27" r="1.8" /></>}
     </>
@@ -135,10 +165,17 @@ function Face({ expr }) {
  * Purely optional: the header toggle or the "B" key turns him off, and every
  * animation stops under the reduced-motion setting.
  */
-export function StickBuddy({ context, study, onHide }) {
+export function StickBuddy({ context, study, onHide, leaving = false, onGone }) {
   const rootRef = useRef(null);
   const timers = useRef([]);
-  const poseRef = useRef('enter');
+  const poseRef = useRef('idle');
+  const firstRef = useRef(true);       // first screen after mounting: enter through the door
+  const busyRef = useRef(false);       // mid door sequence: nothing else may interrupt
+  const lastEventRef = useRef(0);      // when the app last told him something
+  const visitedRef = useRef(new Set()); // steps seen, for the grand-tour achievement
+  const tourDoneRef = useRef(false);
+  const onGoneRef = useRef(onGone);
+  onGoneRef.current = onGone;
   const lastActive = useRef(Date.now());
   const clicks = useRef([]);
   const drag = useRef(null);
@@ -151,14 +188,21 @@ export function StickBuddy({ context, study, onHide }) {
   const [bubble, setBubble] = useState(true);
   const [extra, setExtra] = useState(null);       // joke / reaction replacing the tip
   const [thought, setThought] = useState(null);   // small ephemeral aside
-  const [pose, setPoseState] = useState('enter');
+  const [pose, setPoseState] = useState('idle');
   const [moodOverride, setMoodOverride] = useState(null);
   const [x, setX] = useState(null);               // null = parked at home (bottom-right)
   const [face, setFace] = useState('left');
   const [confetti, setConfetti] = useState(null);
   const [dragging, setDragging] = useState(false);
+  const [door, setDoor] = useState('hidden');      // hidden | shut | open
+  const [away, setAway] = useState(true);          // through the door, out of sight
+  const [propOverride, setPropOverride] = useState(null); // e.g. the mug after a coffee run
+  const [plane, setPlane] = useState(null);        // paper airplane after an export
+  const badge = useMemo(() => seasonal().badge, []);
+  const bubbleRef = useRef(true);
+  bubbleRef.current = bubble;
 
-  const prop = BUDDY_PROPS[context] || 'drop';
+  const prop = propOverride || BUDDY_PROPS[context] || 'drop';
   const rest = prop === 'juggle' ? 'juggle' : 'idle';
   const setPose = useCallback((p) => {
     setPoseState(prev => { const next = typeof p === 'function' ? p(prev) : p; poseRef.current = next; return next; });
@@ -240,8 +284,81 @@ export function StickBuddy({ context, study, onHide }) {
     });
   }, [later, rest, setPose]);
 
+  // In through the door at the side of the app: it swings open, he steps out,
+  // waves, and it closes behind him.
+  const enterThroughDoor = (line) => {
+    clearTimers();
+    busyRef.current = true;
+    setX(null);
+    setFace('left');
+    setAway(true);
+    setDoor('shut');
+    later(() => setDoor('open'), 250);
+    later(() => { setAway(false); setPose('emerge'); }, 600);
+    later(() => {
+      setPose(rest);
+      act('wave');
+      if (line) say(line, 4000);
+    }, 600 + POSE_MS.emerge);
+    later(() => setDoor('shut'), 1600);
+    later(() => { setDoor('hidden'); busyRef.current = false; }, 2200);
+  };
+
+  // Out through the door: stroll home (it's right beside the door), open it,
+  // step through, close it. `then` runs once he's gone.
+  const exitThroughDoor = (then, line) => {
+    clearTimers();
+    busyRef.current = true;
+    setBubble(false);
+    setExtra(null);
+    setThought(line || null);
+    setDoor('shut');
+    later(() => setDoor('open'), 250);
+    const stepThrough = () => {
+      setFace('right');
+      setPose('exit');
+      later(() => { setAway(true); setThought(null); setDoor('shut'); }, POSE_MS.exit);
+      later(() => { setDoor('hidden'); then?.(); }, POSE_MS.exit + 600);
+    };
+    later(() => walkTo(null, stepThrough), 350);
+  };
+
+  // A coffee run: out the door, back a few seconds later holding a mug.
+  const coffeeRun = () => {
+    exitThroughDoor(() => {
+      later(() => {
+        setPropOverride('mug');
+        enterThroughDoor(pick(COFFEE_BACK_LINES));
+        later(() => setPropOverride(null), 30000);
+      }, 4500);
+    }, pick(COFFEE_LINES));
+  };
+
+  // Turned off: leave through the door, then tell the app he's gone. Turned
+  // back on before he finished leaving: come right back in.
+  const wasLeaving = useRef(leaving);
+  useEffect(() => {
+    if (leaving) {
+      if (reducedMotion()) onGoneRef.current?.();
+      else exitThroughDoor(() => onGoneRef.current?.(), pick(BYE_LINES));
+    } else if (wasLeaving.current) {
+      enterThroughDoor(pick(BACK_LINES));
+    }
+    wasLeaving.current = leaving;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaving]);
+
   // New screen: fresh script, a varied hello, and stroll home if he wandered.
   useEffect(() => {
+    const opening = buddyOpening(context, study);
+    if (typeof context === 'number') visitedRef.current.add(context);
+    // Mid door sequence, or the app just told him something (a new study was
+    // created, say): update the script but don't interrupt with a hello.
+    if (busyRef.current || Date.now() - lastEventRef.current < 900) {
+      setTips(opening);
+      setIdx(0);
+      return;
+    }
     clearTimers();
     setIdx(0);
     setExtra(null);
@@ -250,25 +367,45 @@ export function StickBuddy({ context, study, onHide }) {
     // On a phone-sized control the bubble would cover the step; start tucked
     // away (unless the study has a problem to flag) and let a tap open it.
     const tiny = !!appEl()?.classList.contains('xnarrow');
-    const opening = buddyOpening(context, study);
     setTips(opening);
     setBubble(!tiny || opening.some(t => t.mood === 'worried'));
-    if (tiny) later(() => say('Tap me for tips 👋', 4500), 1200);
-    if (poseRef.current === 'enter') { later(() => act('wave'), 950); return; }
+    if (tiny) later(() => say('Tap me for tips 👋', 4500), 2400);
+    if (firstRef.current) {
+      firstRef.current = false;
+      if (reducedMotion()) { setAway(false); return; }
+      enterThroughDoor();
+      return;
+    }
+    // Visited all eight steps in one sitting: an achievement.
+    if (visitedRef.current.size === 8 && !tourDoneRef.current) {
+      tourDoneRef.current = true;
+      act('celebrate', { mood: 'excited' });
+      burst();
+      setBubble(true);
+      setExtra({ say: TOUR_DONE_LINE, kind: 'reaction' });
+      return;
+    }
     const hello = () => act(pick(['wave', 'wave', 'jump', 'flip', 'spin', 'thumbs']));
     if (x != null) walkTo(null, hello); else hello();
     // study is read only on context change; live changes go through the
     // reaction effect below so he doesn't re-introduce himself per keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context]);
+  }, [context, study?.id]);
 
   // React to the study's numbers as they change (debounced past typing bursts).
+  const metricsIdRef = useRef(study?.id);
   useEffect(() => {
+    // A different study isn't a change to react to — just a new baseline.
+    if (study?.id !== metricsIdRef.current) {
+      metricsIdRef.current = study?.id;
+      prevMetrics.current = buddyMetrics(study);
+      return undefined;
+    }
     const t = setTimeout(() => {
       const next = buddyMetrics(study);
       const r = buddyReaction(prevMetrics.current, next);
       prevMetrics.current = next;
-      if (!r || Date.now() - lastReact.current < REACT_COOLDOWN || dragging) return;
+      if (!r || busyRef.current || Date.now() - lastReact.current < REACT_COOLDOWN || dragging) return;
       lastReact.current = Date.now();
       if (poseRef.current === 'sleep') setPose(rest);
       act(r.pose, { mood: r.mood, ms: POSE_MS[r.pose] });
@@ -278,6 +415,39 @@ export function StickBuddy({ context, study, onHide }) {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [study]);
+
+  // The app tells him what just happened (undo, export, delete…).
+  useEffect(() => onBuddyEvent((ev) => {
+    const spec = BUDDY_EVENTS[ev.type];
+    if (!spec || busyRef.current) return;
+    lastActive.current = Date.now();
+    lastEventRef.current = Date.now();
+    lastReact.current = Date.now();
+    if (poseRef.current === 'sleep') setPose(rest);
+    act(spec.pose, { mood: spec.mood });
+    if (spec.pose === 'celebrate') burst();
+    if (ev.type === 'export') { setPlane(Date.now()); later(() => setPlane(null), 1800); }
+    const line = pick(spec.lines);
+    if (bubbleRef.current) setExtra({ say: line, kind: 'reaction' }); else say(line, 4500);
+  }), [act, burst, later, rest, say, setPose]);
+
+  // Typing in the app: now and then he takes notes on it.
+  useEffect(() => {
+    const app = appEl();
+    if (!app) return undefined;
+    let last = 0;
+    const onInput = (e) => {
+      if (rootRef.current?.contains(e.target)) return;
+      lastActive.current = Date.now();
+      if (busyRef.current || !RESTING.has(poseRef.current) || Date.now() - last < 9000 || Math.random() < 0.5) return;
+      last = Date.now();
+      act('scribble');
+      if (!bubbleRef.current && Math.random() < 0.45) say(pick(TYPING_LINES), 2600);
+    };
+    app.addEventListener('input', onInput, true);
+    return () => app.removeEventListener('input', onInput, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [act, say]);
 
   // Eyes follow the pointer; any input wakes him; idle time puts him to sleep.
   useEffect(() => {
@@ -305,7 +475,7 @@ export function StickBuddy({ context, study, onHide }) {
     window.addEventListener('pointermove', onMove, { passive: true });
     window.addEventListener('keydown', onKey);
     const t = setInterval(() => {
-      if (RESTING.has(poseRef.current) && !drag.current && Date.now() - lastActive.current > SLEEP_AFTER) {
+      if (RESTING.has(poseRef.current) && !drag.current && !busyRef.current && Date.now() - lastActive.current > SLEEP_AFTER) {
         setBubble(false);
         setThought(null);
         setPose('sleep');
@@ -326,15 +496,24 @@ export function StickBuddy({ context, study, onHide }) {
     let t;
     const loop = () => {
       t = setTimeout(() => {
-        if (RESTING.has(poseRef.current) && !drag.current) {
-          act(pick(IDLES));
-          if (!bubble && Math.random() < 0.4) say(pick(IDLE_QUIPS), 3600);
+        if (RESTING.has(poseRef.current) && !drag.current && !busyRef.current) {
+          const what = pick(IDLES);
+          const tiny = !!appEl()?.classList.contains('xnarrow');
+          if (what === 'coffee') {
+            // Only when nobody's mid-conversation with him, and not on a phone.
+            if (!bubble && !tiny && !reducedMotion()) coffeeRun();
+          } else {
+            act(what);
+            const aside = what === 'meditate' ? MEDITATE_LINES : what === 'watch' ? WATCH_LINES : IDLE_QUIPS;
+            if (!bubble && Math.random() < (aside === IDLE_QUIPS ? 0.4 : 0.7)) say(pick(aside), 3600);
+          }
         }
         loop();
       }, 9000 + Math.random() * 8000);
     };
     loop();
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [act, bubble, say]);
 
   const nextTip = () => {
@@ -368,6 +547,7 @@ export function StickBuddy({ context, study, onHide }) {
 
   const poke = () => {
     if (suppressClick.current) { suppressClick.current = false; return; }
+    if (busyRef.current) return;
     lastActive.current = Date.now();
     // Bubble tucked away: the first tap brings his tips back; tricks come after.
     if (!bubble) {
@@ -394,7 +574,7 @@ export function StickBuddy({ context, study, onHide }) {
 
   // Drag him along the bottom edge.
   const onPointerDown = (e) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || busyRef.current) return;
     const m = metrics();
     const me = rootRef.current;
     if (!m || !me) return;
@@ -430,6 +610,14 @@ export function StickBuddy({ context, study, onHide }) {
     if (d?.moved) { setDragging(false); setPose(rest); }
   };
 
+  const lastShy = useRef(0);
+  const onHover = () => {
+    if (busyRef.current || !RESTING.has(poseRef.current) || Date.now() - lastShy.current < 7000) return;
+    lastShy.current = Date.now();
+    act('shy', { mood: 'happy' });
+    if (!bubbleRef.current && Math.random() < 0.5) say(pick(HOVER_LINES), 2200);
+  };
+
   const goHome = () => { setBubble(false); setExtra(null); if (x != null) walkTo(null); };
 
   const text = extra?.say || tip?.say;
@@ -452,13 +640,22 @@ export function StickBuddy({ context, study, onHide }) {
   const expr = {
     sleep: 'sleepy', dizzy: 'dizzy', wake: 'surprised', land: 'surprised', whistle: 'whistle',
     celebrate: 'excited', dance: 'excited', flip: 'excited', spin: 'excited', moonwalk: 'excited', dangle: 'surprised',
-    worry: 'worried', think: 'neutral',
+    worry: 'worried', think: 'neutral', sad: 'sad', meditate: 'calm', rewind: 'excited', throw: 'excited',
+    scribble: 'neutral', watch: 'neutral', exit: 'happy', emerge: 'happy',
   }[pose] || moodOverride || tip?.mood || 'happy';
 
+  const raised = context === 'dashboard' ? '' : ' raised';
   return (
+    <>
+    <div className={`buddy-door no-print door-${door}${raised}`} aria-hidden="true">
+      <div className="door-frame">
+        <div className="door-inside" />
+        <div className="door-panel"><span className="door-window">💧</span><span className="door-knob" /></div>
+      </div>
+    </div>
     <div
       ref={rootRef}
-      className={`buddy no-print pose-${pose} face-${face} expr-${expr} prop-${prop}${x == null ? ' home' : ''}${context === 'dashboard' ? '' : ' raised'}${dragging ? ' dragging' : ''}`}
+      className={`buddy no-print pose-${pose} face-${face} expr-${expr} prop-${prop}${x == null ? ' home' : ''}${raised}${dragging ? ' dragging' : ''}${away ? ' away' : ''}`}
       style={x == null ? undefined : { left: x }}
     >
       {bubble && text && (
@@ -490,9 +687,16 @@ export function StickBuddy({ context, study, onHide }) {
           ))}
         </div>
       )}
+      {plane && (
+        <svg className="buddy-plane" key={plane} viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M2 11.5 L22 3 L14.5 21 L11 13.5 Z" />
+          <path d="M11 13.5 L22 3" />
+        </svg>
+      )}
       <button
         className="buddy-fig"
         onClick={poke}
+        onMouseEnter={onHover}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -519,6 +723,7 @@ export function StickBuddy({ context, study, onHide }) {
                   <Face expr={expr} />
                   <path className="b-hat" d="M20 17 q12 -14 24 0 z" />
                   <rect className="b-brim" x="18" y="16" width="28" height="3" rx="1.5" />
+                  <Badge kind={badge} />
                   <path className="b-sweat" d="M43.5 18 c0 0 -2 3 -2 4.4 a2 2 0 0 0 4 0 c0 -1.4 -2 -4.4 -2 -4.4z" />
                 </g>
               </g>
@@ -536,10 +741,20 @@ export function StickBuddy({ context, study, onHide }) {
             <text className="b-note n1" x="42" y="22">♪</text>
             <text className="b-note n2" x="48" y="14">♫</text>
             <text className="b-q" x="46" y="8">?</text>
+            <text className="b-rw" x="40" y="10">⏪</text>
+            <text className="b-om" x="38" y="16">ommm</text>
+            <circle className="b-pebble" cx="50" cy="96" r="2.2" />
+            <g className="b-cloud" transform="translate(0 -9)">
+              <path d="M18 2 a5 5 0 0 1 8 -4 a6 6 0 0 1 11 1 a4.5 4.5 0 0 1 2 8.5 h-19 a3.8 3.8 0 0 1 -2 -5.5z" />
+              <line className="rd1" x1="23" y1="9" x2="22" y2="13" />
+              <line className="rd2" x1="29" y1="9" x2="28" y2="13" />
+              <line className="rd3" x1="35" y1="9" x2="34" y2="13" />
+            </g>
             <g className="b-stars"><text x="20" y="6">✦</text><text x="38" y="2">✧</text><text x="29" y="-2">✦</text></g>
           </g>
         </svg>
       </button>
     </div>
+    </>
   );
 }

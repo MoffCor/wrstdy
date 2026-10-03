@@ -106,12 +106,18 @@ console.log('\nStandalone build');
 
   // Drip, the guide, is on by default and must be dismissable from the keyboard.
   check('Drip is on the dashboard', await page.locator('.buddy').count(), 1);
-  await page.waitForTimeout(1200);
+  // He arrives through his door: it opens, he steps out, it closes.
+  await page.waitForSelector('.buddy-door.door-open', { timeout: 3000 });
+  check('Drip enters through a door', true, true);
+  await page.waitForSelector('.buddy-door.door-hidden', { timeout: 5000 });
+  await page.waitForSelector('.buddy:not(.away)', { timeout: 5000 });
   await page.locator('.buddy-fig').click();
   await page.waitForTimeout(300);
   check('clicking Drip tells a joke', await page.locator('.buddy-bubble.joke').count(), 1);
   await page.keyboard.press('b');
-  await page.waitForTimeout(200);
+  await page.waitForSelector('.buddy-door.door-open', { timeout: 3000 });
+  check('Drip leaves through the door', true, true);
+  await page.waitForSelector('.buddy', { state: 'detached', timeout: 8000 });
   check('B hides Drip', await page.locator('.buddy').count(), 0);
   await page.keyboard.press('b');
   await page.waitForTimeout(200);
@@ -184,6 +190,9 @@ console.log('\nStandalone build');
   check('Alt+→ moves one step', await page.getByRole('tab', { name: /Financial Metrics/ }).getAttribute('aria-selected'), 'true');
 
   // Dragging Drip tracks the pointer at the default (zoomed) text size.
+  // (Wait out any coffee run — he may be off through his door.)
+  await page.waitForSelector('.buddy:not(.away)', { timeout: 15000 });
+  await page.waitForSelector('.buddy-door.door-hidden', { timeout: 15000 });
   const fig = page.locator('.buddy-fig');
   const b0 = await fig.boundingBox();
   await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2);
@@ -192,7 +201,7 @@ console.log('\nStandalone build');
   await page.mouse.up();
   await page.waitForTimeout(150);
   const b1 = await fig.boundingBox();
-  check('Drip follows a drag 1:1 at the default zoom', Math.abs((b0.x - b1.x) - 200) < 12, true);
+  check('Drip follows a drag 1:1 at the default zoom', Math.round(b0.x - b1.x), d => Math.abs(d - 200) < 12);
 
   await page.getByRole('tab', { name: /5-Year Projection/ }).click();
   await page.waitForTimeout(300);

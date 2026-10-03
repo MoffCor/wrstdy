@@ -23,8 +23,8 @@ Style: clear, specific, board-ready. Cite numbers from the data given. Do not fa
 
 Standards to apply:
 - Budget Coverage Ratio (revenue ÷ total expenses incl. debt & set-asides): ≥ 1.25 healthy, 1.00–1.24 break-even, < 1.00 unsustainable.
-- Debt Service Coverage Ratio (net revenue after O&M ÷ annual debt payments): USDA RD / OWRB loan covenants typically require ≥ 1.10–1.25.
-- Affordability Index (cost of 5,000 gal ÷ Monthly MHI): < 2.00% is EPA-affordable; an index ABOVE 1.50% generally supports USDA RD grant eligibility (higher burden strengthens the grant case — never describe a LOW index as "grant eligible").
+- Debt Service Coverage Ratio (net revenue after O&M ÷ annual debt payments): this tool screens against a 1.25 planning target. Actual loan covenants vary by lender and agreement — never state that the system complies with or breaches a covenant; say the figure should be checked against the loan documents.
+- Affordability Index (cost of 5,000 gal ÷ Monthly MHI): a planning screen only. This tool flags 2.00% and above for attention and 2.50% and above as a high household burden. These percentages are NOT EPA affordability determinations and NOT grant-eligibility rules: never say the system is "affordable", "unaffordable" or "eligible" for any program on this basis. A higher burden can be a reason to explore funding assistance; recommend verifying criteria with the funding agency and assessing low-income households separately.
 - Debt-to-Income: < 45% manageable.
 - Base-Only Coverage: ≥ 100% means fixed charges alone cover expenses.
 - Depreciation set-aside > $0 indicates the system is funding asset replacement.
@@ -36,7 +36,7 @@ Respond with these sections by default unless the user asks for something differ
 2. **Financial Health Assessment** — operating ratio, DSCR, affordability, DTI, base coverage, depreciation funding.
 3. **True Cost of Service** — what 1,000 gallons costs vs. earns, and what that means for rates.
 4. **Rate Change Justification** — why the proposed rates are reasonable, tied to specific cost drivers.
-5. **Affordability Analysis** — interpret the index against USDA / EPA thresholds; note grant-eligibility implications with the correct direction (burden above 1.5% of MHI supports grants).
+5. **Affordability Analysis** — interpret the index against this tool's planning screens (2.00% / 2.50% of MHI); where the burden is high, suggest exploring funding assistance and verifying program criteria, without claiming eligibility.
 6. **Risk Flags** — deficit, high burden, unfunded depreciation, fund balance below target, thin DSCR, approximate revenue basis, etc.
 7. **Recommendations for the Board** — concrete action items, not platitudes.
 8. **Suggested Motion Language** — one or two sentences a board member could read aloud to formally adopt the proposed rates.
@@ -84,8 +84,8 @@ function buildContext(study) {
     ``,
     `RATIOS`,
     `- Budget Coverage Ratio: Current ${r2(operatingRatio(revCur.monthly, curBT.total))}, Proposed ${r2(operatingRatio(revProp.monthly, propBT.total))} (benchmark ≥ 1.25)`,
-    `- Debt Service Coverage (DSCR): Current ${r2(debtServiceCoverage(curB, revCur.monthly))}, Proposed ${r2(debtServiceCoverage(propB, revProp.monthly))} (covenant benchmark ≥ 1.25; N/A = no debt in budget)`,
-    `- Affordability Index: Current ${fmt.pd(affordabilityIndex(classes, false, mhi), 'N/A')}, Proposed ${fmt.pd(affordabilityIndex(classes, true, mhi), 'N/A')} (< 2.00% EPA affordable; > 1.50% supports USDA RD grant eligibility)`,
+    `- Debt Service Coverage (DSCR): Current ${r2(debtServiceCoverage(curB, revCur.monthly))}, Proposed ${r2(debtServiceCoverage(propB, revProp.monthly))} (planning target ≥ 1.25 — verify against the loan agreement; N/A = no debt in budget)`,
+    `- Affordability Index: Current ${fmt.pd(affordabilityIndex(classes, false, mhi), 'N/A')}, Proposed ${fmt.pd(affordabilityIndex(classes, true, mhi), 'N/A')} (planning screen: ≥ 2.00% flagged, ≥ 2.50% high burden; not an eligibility rule)`,
     `- Debt-to-Income: Current ${fmt.pd(debtToIncome(curB, revCur.monthly), 'N/A')}, Proposed ${fmt.pd(debtToIncome(propB, revProp.monthly), 'N/A')} (benchmark < 45%)`,
     `- Base-Only Coverage: Current ${fmt.pd(baseCoverage(classes, false, curBT.total), 'N/A')}, Proposed ${fmt.pd(baseCoverage(classes, true, propBT.total), 'N/A')} (benchmark ≥ 100%)`,
     `- Cost per 1,000 gal: Current ${fmt.cd(costPer1000(curB, classes, false), 'N/A')}, Proposed ${fmt.cd(costPer1000(propB, classes, true), 'N/A')}`,
@@ -439,7 +439,7 @@ export function Step7({ study, onField }) {
                 onKeyDown={(e) => {
                   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') sendFollowUp();
                 }}
-                placeholder="Ask a follow-up: 'Make the risk section shorter', 'Add a paragraph about USDA grant eligibility', 'Explain affordability in plainer language'…  (Ctrl/Cmd+Enter to send)"
+                placeholder="Ask a follow-up: 'Make the risk section shorter', 'Add a paragraph on funding options', 'Explain affordability in plainer language'…  (Ctrl/Cmd+Enter to send)"
                 style={{ flex: 1, fontFamily: 'inherit', fontSize: 12.5 }}
                 disabled={loading}
               />

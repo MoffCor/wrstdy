@@ -7,6 +7,7 @@ import {
   solveUniformMultiplier, solveDscrMultiplier, scaleProposedRates, revenueRequirement,
 } from '../lib/ratedesign.js';
 import { ConfirmModal } from './ConfirmModal.jsx';
+import { buddyEvent } from '../lib/buddyBus.js';
 import { pushToast } from './Toasts.jsx';
 
 const OR_PRESETS = [1.0, 1.1, 1.25, 1.5];
@@ -66,6 +67,7 @@ export function RateDesignPanel({ study, onField }) {
   const apply = () => {
     onField('classes', scaleProposedRates(classes, m));
     setConfirm(false);
+    buddyEvent('apply');
     pushToast(`Proposed rates ${pct >= 0 ? 'raised' : 'lowered'} ${Math.abs(pct * 100).toFixed(1)}% across all enabled classes. Ctrl+Z to undo.`, { kind: 'ok', duration: 6000 });
   };
 

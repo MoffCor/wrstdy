@@ -101,7 +101,15 @@ const normalizeForecast = (forecast = {}) => {
 
 const normalizeClasses = (classes) => {
   const base = defaultClasses();
-  const incoming = Array.isArray(classes) ? classes : [];
+  // A class with no id (hand-built or third-party JSON import) used to be
+  // skipped outright, silently dropping its customers and revenue. Give it a
+  // stable id instead; it is persisted with the study on the next save.
+  const used = new Set((Array.isArray(classes) ? classes : []).map(c => c?.id).filter(Boolean));
+  let seq = 0;
+  const nextId = () => { let id; do { id = `imp${++seq}`; } while (used.has(id)); used.add(id); return id; };
+  const incoming = (Array.isArray(classes) ? classes : [])
+    .filter(c => c && typeof c === 'object')
+    .map(c => (c.id ? c : { ...c, id: nextId() }));
   const byId = new Map(incoming.filter(Boolean).map(c => [c.id, c]));
   const merged = base.map(def => {
     const c = byId.get(def.id) || {};

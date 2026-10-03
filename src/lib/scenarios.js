@@ -12,12 +12,21 @@ export const DEFAULT_SCENARIO_ADJUSTMENTS = Object.freeze({
 
 export const DEFAULT_SCENARIO_RATE_BASIS = 'proposed';
 
+// A class's revenue multiplier. Blank, zero, negative, or unparseable means
+// "unchanged" (1.00). Step 6 already displayed and computed a cleared/zero
+// multiplier as 1.00, while the Final Report and PDF/DOCX read the stored 0
+// and dropped that class's scenario revenue to $0 — both now share this rule.
+export function scenarioMultiplier(v) {
+  const n = nv(v);
+  return n > 0 ? n : 1;
+}
+
 export function scenarioAdjustmentsForClasses(classes = [], activeScenario = {}) {
   const saved = activeScenario?.adjustments || activeScenario || {};
   const ids = scenarioClassIds(classes);
 
   return Array.from(ids).reduce((acc, id) => {
-    acc[id] = nv(saved[id] ?? DEFAULT_SCENARIO_ADJUSTMENTS[id] ?? 1);
+    acc[id] = scenarioMultiplier(saved[id] ?? DEFAULT_SCENARIO_ADJUSTMENTS[id] ?? 1);
     return acc;
   }, {});
 }

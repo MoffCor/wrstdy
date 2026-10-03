@@ -10,6 +10,9 @@ import {
   calc5Yr, calcHML, billImpactForClass, billImpactExamples, rateStructureComparison,
 } from './calc.js';
 import { normalizeStudy } from './state.js';
+import { scenarioForClasses, scenarioMultiplier } from './scenarios.js';
+import { buildReport } from './exporters/data.js';
+import { makeSampleStudy } from './sample-study.js';
 
 test('tierTopAmounts preserves cumulative bills for default 1,000-gallon tier blocks', () => {
   const minCharge = '10';
@@ -490,4 +493,37 @@ test('rateStructureComparison compares breakpoints by their own gallon value, no
   // proposed has no block that large, so it falls back to its only tier.
   assert.equal(row.tiers[1].cur, 5);
   assert.equal(row.tiers[1].prop, 7);
+});
+
+test('a cleared/zero scenario multiplier means 1.00 on screen AND in the exported report', () => {
+  // Step 6 showed and computed a stored 0 as 1.00, while buildReport (PDF/DOCX)
+  // read the raw 0 and dropped the class's scenario revenue to $0.
+  assert.equal(scenarioMultiplier(0), 1);
+  assert.equal(scenarioMultiplier(''), 1);
+  assert.equal(scenarioMultiplier(-0.5), 1);
+  assert.equal(scenarioMultiplier('1.1'), 1.1);
+  const study = makeSampleStudy();
+  assert.equal(scenarioForClasses(study.classes, { adjustments: { res: 0 } }).adjustments.res, 1);
+  study.activeScenario = { label: 'Custom', adjustments: { res: 0 }, rateBasis: {} };
+  const res = buildReport(study).scenario.rows.find(r => r.name === 'Residential Water');
+  assert.equal(res.multiplier, 1);
+  assert.equal(res.monthly, classMonthlyIncome(study.classes.find(c => c.id === 'res'), true).monthly);
+});
+
+test('normalizeStudy keeps an imported class that has no id', () => {
+  // Previously skipped outright — its customers and revenue vanished on load.
+  const study = normalizeStudy({
+    classes: [
+      { name: 'Sewer', enabled: true, cur: { customers: '10', minCharge: '20' } },
+      { name: 'Bulk', enabled: true, cur: { customers: '2', minCharge: '50' } },
+    ],
+  });
+  const sewer = study.classes.find(c => c.name === 'Sewer');
+  const bulk = study.classes.find(c => c.name === 'Bulk');
+  assert.ok(sewer && bulk);
+  assert.ok(sewer.id && bulk.id && sewer.id !== bulk.id);
+  assert.equal(totalRevenue(study.classes, false).monthly, 10 * 20 + 2 * 50);
+  // Stable across a reload: the assigned id is kept, nothing duplicates.
+  const again = normalizeStudy(study);
+  assert.deepEqual(again.classes.map(c => c.id), study.classes.map(c => c.id));
 });

@@ -17,7 +17,7 @@
 // are shown on screen and summarized in the report's data-quality section.
 
 import {
-  nv, budgetTotal, totalRevenue, normalizeTiers, hasUsageDistribution,
+  nv, parseAmount, budgetTotal, totalRevenue, normalizeTiers, hasUsageDistribution,
   classCustomers, classGallons, operatingRatio,
   affordabilityIndex, debtServiceCoverage, monthlyDebtService, calc5Yr, targetFundBalance,
 } from './calc.js';
@@ -40,6 +40,9 @@ export const stepName = (i) => STEP_NAMES[i] || '';
 // A relative difference that reads as a transcription error rather than
 // rounding — 10% between two figures that should describe the same customers.
 const TOLERANCE = 0.1;
+
+// Planning target shared with the Step 4 scorecard and the PDF/DOCX reports.
+const DSCR_TARGET = 1.25;
 const relDiff = (a, b) => {
   const base = Math.max(Math.abs(a), Math.abs(b));
   return base > 0 ? Math.abs(a - b) / base : 0;
@@ -70,32 +73,35 @@ export function validateStudy(study = {}) {
   // Invalid values must remain visible as findings, not silently become zero.
   const checkNumber = (value, label, step, nonnegative = true) => {
     if (value == null || String(value).trim() === '') return;
-    let text = String(value).trim();
-    if (text.startsWith('(') && text.endsWith(')')) text = '-' + text.slice(1, -1);
-    const number = Number(text.replace(/[$\s,]/g, ''));
+    // Same parser nv() uses, so a value is flagged exactly when the
+    // calculations would silently read it as 0.
+    const number = parseAmount(value);
     if (!Number.isFinite(number) || (nonnegative && number < 0)) {
       add(`numeric-${step}-${label}`, 'error', step, `Check ${label}`,
         'Enter a valid number' + (nonnegative ? ' of zero or greater.' : '.') + ' This value cannot support a reliable recommendation.');
     }
   };
   for (const c of enabled) {
+    // Unnamed custom slots (c5–c7) have name '' — fall back to the id so the
+    // finding still says which class it is about.
+    const cn = c.name || c.id;
     for (const side of ['cur', 'prop']) {
       const d = c[side] || {};
-      for (const key of ['customers', 'gallonsSold', 'minCharge']) checkNumber(d[key], `${c.name} ${side} ${key}`, 1);
+      for (const key of ['customers', 'gallonsSold', 'minCharge']) checkNumber(d[key], `${cn} ${side} ${key}`, 1);
       const seen = new Set();
       for (const [i, t] of (d.tiers || []).entries()) {
-        checkNumber(t.gal, `${c.name} ${side} block ${i + 1} gallons`, 1);
-        checkNumber(t.rate, `${c.name} ${side} block ${i + 1} rate`, 1);
+        checkNumber(t.gal, `${cn} ${side} block ${i + 1} gallons`, 1);
+        checkNumber(t.rate, `${cn} ${side} block ${i + 1} rate`, 1);
         if (nv(t.gal) > 0 && seen.has(nv(t.gal))) add(`duplicate-${c.id}-${side}-${i}`, 'error', 1,
-          `${c.name}: duplicate tier breakpoint`, 'Use one rate per cumulative gallon breakpoint. A duplicate would be ignored by the billing engine.');
+          `${cn}: duplicate tier breakpoint`, 'Use one rate per cumulative gallon breakpoint. A duplicate would be ignored by the billing engine.');
         seen.add(nv(t.gal));
         if (!(nv(t.gal) > 0) && nv(t.rate) !== 0) add(`orphan-${c.id}-${side}-${i}`, 'error', 1,
-          `${c.name}: tier rate has no valid breakpoint`, 'Enter the cumulative gallon limit or remove this tier.');
+          `${cn}: tier rate has no valid breakpoint`, 'Enter the cumulative gallon limit or remove this tier.');
       }
     }
     for (const [i, row] of (c.usage || []).entries()) {
-      checkNumber(row.customers, `${c.name} usage ${i + 1} customers`, 1);
-      checkNumber(row.gallons, `${c.name} usage ${i + 1} gallons`, 1);
+      checkNumber(row.customers, `${cn} usage ${i + 1} customers`, 1);
+      checkNumber(row.gallons, `${cn} usage ${i + 1} gallons`, 1);
     }
   }
   for (const [side, budget] of [['current', curB], ['proposed', propB]]) {
@@ -108,6 +114,19 @@ export function validateStudy(study = {}) {
     if (nv(study.forecast?.[key]) <= -100) add(`growth-${key}`, 'error', 4, `${key} must exceed -100%`, 'A zero or negative compounding factor is not a usable forecast.');
   }
   for (const [i, v] of (study.forecast?.debtService || []).entries()) checkNumber(v, `FY${i + 1} debt service`, 4);
+  // The fund-balance inputs and one-time items feed every projection year;
+  // "18k" or "12.5k" here previously read as $0 with no finding at all.
+  // Opening balance and one-time items may legitimately be negative
+  // (overdrawn cash; grants entered as negative costs).
+  checkNumber(study.forecast?.beginFundBalance, 'beginning fund balance', 4, false);
+  checkNumber(study.forecast?.targetFundBalance, 'target fund balance', 4);
+  for (const [r, item] of (study.forecast?.knownItems || []).entries()) {
+    for (const [i, v] of (item?.vals || []).entries()) {
+      checkNumber(v, `one-time item ${r + 1}${item?.label ? ` (${item.label})` : ''} FY${i + 1}`, 4, false);
+    }
+  }
+  checkNumber(dm.medianMonthlyHHI, 'monthly median household income', 0);
+  checkNumber(si.populationServed, 'population served', 0);
 
   // ── Step 1: identity and demographics ────────────────────────────────────
   if (!String(si.systemName || '').trim()) {
@@ -133,7 +152,7 @@ export function validateStudy(study = {}) {
   const mhi = nv(dm.medianMonthlyHHI);
   if (!(mhi > 0)) {
     add('mhi-missing', 'warn', 0, 'Monthly median household income (MHI) not entered',
-      'Without MHI the Affordability Index cannot be calculated, and the USDA RD grant-eligibility discussion has no basis.');
+      'Without MHI the Affordability Index and the income screening bands cannot be calculated.');
   } else if (mhi >= 10000) {
     add('mhi-annual', 'error', 0, 'MHI looks like an annual figure',
       `$${Math.round(mhi).toLocaleString('en-US')}/month is far above any Oklahoma service area. Census ACS publishes ANNUAL MHI — divide by 12. Left as-is, rates look 12× more affordable than they are.`);
@@ -284,10 +303,13 @@ export function validateStudy(study = {}) {
       `Budget coverage ratio is ${propOR.toFixed(2)}. Above break-even with a margin below the planning target; inspect the reserves already included in the budget.`);
   }
 
+  // Same 1.25 planning target the Step 4 scorecard and the reports mark as
+  // ✓/✗; this previously fired only below 1.15, so a DSCR of 1.20 showed a
+  // red "Thin margin" on the scorecard while the data check stayed silent.
   const propDSCR = debtServiceCoverage(propB, revProp.monthly);
-  if (monthlyDebtService(propB) > 0 && propDSCR != null && propDSCR < 1.15) {
+  if (monthlyDebtService(propB) > 0 && propDSCR != null && propDSCR < DSCR_TARGET) {
     add('dscr-low', propDSCR < 1 ? 'error' : 'warn', 3, 'Debt service coverage is below the planning screen',
-      `DSCR is ${propDSCR.toFixed(2)}. Compare against the actual loan agreement; this planning screen does not determine covenant compliance.`);
+      `DSCR is ${propDSCR.toFixed(2)}, below the ${DSCR_TARGET.toFixed(2)} planning target. Compare against the actual loan agreement; this planning screen does not determine covenant compliance.`);
   }
 
   const propAI = affordabilityIndex(classes, true, mhi);

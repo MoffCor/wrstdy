@@ -140,6 +140,38 @@ export const WAKE_LINES = [
   '*snort* — Ahem. Where were we? Rates. Yes. Rates.',
 ];
 
+// Things the app tells him about (via lib/buddyBus.js) and how he takes them.
+export const BUDDY_EVENTS = {
+  undo: { pose: 'rewind', mood: 'excited', lines: ['Rewind! ⏪ If only pipes had Ctrl+Z.', 'Undone. Time travel: still undefeated.', 'Whoosh — back in time. Nobody saw that.'] },
+  redo: { pose: 'spin', mood: 'excited', lines: ['Redo! Fast-forward ⏩', 'And we\'re back. Déjà vu, but useful.'] },
+  export: { pose: 'throw', mood: 'excited', lines: ['Exported! I folded it into a paper airplane. Professionally.', 'Off it goes ✈️ Back-ups are self-care.', 'Saved to a file. Future you says thanks.'] },
+  apply: { pose: 'celebrate', mood: 'excited', lines: ['Rates applied! Every proposed rate moved together. Ctrl+Z if you blink.', 'Done — the math did the math. Check the scorecard!'] },
+  created: { pose: 'jump', mood: 'excited', lines: ['A fresh study! Smells like new spreadsheets.', 'New study, who dis? Let\'s start with Step 1.'] },
+  duplicated: { pose: 'thumbs', mood: 'happy', lines: ['Twins! Change this copy as much as you like — the original is safe.', 'Copy made. Go wild; the original won\'t know.'] },
+  rolled: { pose: 'celebrate', mood: 'excited', lines: ['Happy new rate year! 🎆 Last year\'s proposed rates are now current.', 'A whole year, just like that. Replace the opening balance with the audited figure in Step 5.'] },
+  deleted: { pose: 'sad', mood: 'sad', lines: ['Goodbye, study. You were a good one. 😢', 'Gone. I\'ll hold a tiny moment of silence. …Okay, done.'] },
+};
+
+export const BYE_LINES = ['Okay, I\'ll be in the back. Press B if you need me!', 'Exit, stage right. 🚪', 'Taking five. Don\'t change the rates without me. (Kidding. Please do.)'];
+export const BACK_LINES = ['I\'m back! Did I miss anything? I missed everything.', 'Ta-da! 🚪 Miss me?', 'Back from the break room. The coffee there is… water.'];
+export const COFFEE_LINES = ['Coffee run! Back in a jiffy. ☕', 'BRB — refilling my mug. With water. Obviously.'];
+export const COFFEE_BACK_LINES = ['Got coffee. Well, hot water with ambition.', 'Back! Fully caffeinated, emotionally hydrated.'];
+export const TYPING_LINES = ['Ooh, numbers! 📝', 'Typing intensifies…', 'Taking notes. Mostly doodles.', 'Every digit counts. Literally.'];
+export const HOVER_LINES = ['Oh! Hi. 👋', '*blushes in stick figure*', 'You can click me, you know.'];
+export const MEDITATE_LINES = ['Ommmm… balanced budgets… ommm…', 'Finding my inner operating ratio.'];
+export const WATCH_LINES = ['Is it five o\'clock yet?', 'Tick tock. Rates don\'t set themselves. Well — Step 4 kind of does.'];
+export const TOUR_DONE_LINE = 'Grand tour complete! You\'ve visited all 8 steps. I hereby name you an honorary hydrologist. 🏅';
+
+// Seasonal flavor: a hat decoration and a line, by month (0 = January).
+export function seasonal(now = new Date()) {
+  const m = now.getMonth();
+  if (m === 9) return { badge: 'pumpkin', line: 'Spooky season 🎃 The scariest thing in here is a coverage ratio under 1.0.' };
+  if (m === 11) return { badge: 'snow', line: 'Happy holidays! ❄️ Frozen pipes are not a rate structure.' };
+  if (m === 0) return { badge: 'party', line: 'New year, new rates? Start next year\'s study from the ⋯ menu in any study.' };
+  if (m === 6) return { badge: 'sun', line: 'Summer peak demand! Sprinklers everywhere. Tier 3 is having a great month.' };
+  return { badge: null, line: null };
+}
+
 export const DRAG_LINES = ['Wheee!', 'Put me down! …Okay, this is fun.', 'I\'m flying! Sort of. Mostly dangling.', 'Easy! I\'m load-bearing.'];
 export const DIZZY_LINES = ['Okay okay, the room is spinning…', 'I see three of you. All very productive.', 'Stop! My lines are tangled!'];
 
@@ -227,6 +259,9 @@ export function shuffled(arr, rnd = Math.random) {
 export function buddyOpening(context, study, { now = new Date(), rnd = Math.random } = {}) {
   const alerts = context === 'dashboard' ? [] : buddyAlerts(study);
   const [lead, ...rest] = BUDDY_TIPS[context] || [];
-  const hello = context === 'dashboard' ? [{ say: pick(greeting(now), rnd), target: '.hero-actions' }] : [];
+  const season = seasonal(now).line;
+  const hello = context === 'dashboard'
+    ? [{ say: pick(greeting(now), rnd), target: '.hero-actions' }, ...(season ? [{ say: season }] : [])]
+    : [];
   return [...alerts, ...hello, ...(lead ? [lead] : []), ...shuffled(rest, rnd)];
 }
