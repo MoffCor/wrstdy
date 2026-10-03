@@ -5,6 +5,10 @@
     <ProjectGuid>30caaf13-2fd1-4fc5-91ae-0262c3a49b99</ProjectGuid>
     <TargetFramework>net8.0</TargetFramework>
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+    <!-- Where the unpacked solution (Other/Solution.xml, Customizations.xml)
+         lives, as `pac solution init` declares it. Without it the packager
+         looks for Other/Solution.xml at the project root and fails. -->
+    <SolutionRootPath>src</SolutionRootPath>
   </PropertyGroup>
 
   <!-- Managed by default so a build produces the package that gets imported
