@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import {
   BUDDY_TIPS, BUDDY_PROPS, BUDDY_JOKES, buddyOpening, buddyAlerts, buddyMetrics,
   buddyReaction, greeting, shuffled, pick, BUDDY_EVENTS, seasonal, plantStage, PHONE_CALLS,
+  whatsNext, explainStep, glossaryFor, stepFindings, MOVE_LINES, ACTIVITY_LINES, FISH_CATCHES, PRO_TIPS,
+  IDLE_QUIPS, WAKE_LINES, SHOWREEL_OPENERS, SHOWREEL_CLOSERS,
 } from './buddy.js';
+import { validateStudy } from './validate.js';
 import { buddyEvent, onBuddyEvent } from './buddyBus.js';
 import { makeSampleStudy } from './sample-study.js';
 import { newStudy } from './state.js';
@@ -109,6 +112,60 @@ test('his plant grows with the days, and a bad date is a sprout', () => {
   for (const call of PHONE_CALLS) assert.ok(call.length >= 2);
 });
 
-test('no joke leans on innuendo', () => {
-  assert.ok(!BUDDY_JOKES.some(j => /straight/i.test(j)));
+test('no line leans on innuendo', () => {
+  const all = [
+    ...BUDDY_JOKES, ...IDLE_QUIPS, ...WAKE_LINES, ...PRO_TIPS, ...SHOWREEL_OPENERS, ...SHOWREEL_CLOSERS,
+    ...Object.values(MOVE_LINES).flat(), ...Object.values(ACTIVITY_LINES).flat(),
+    ...Object.values(BUDDY_TIPS).flat().map(t => t.say),
+  ];
+  assert.ok(!all.some(j => /too straight|mostly straight|straight pipe/i.test(j)));
+});
+
+test('every way of getting about and every bit has something to say', () => {
+  const modes = ['ladder', 'balloon', 'stairs', 'trampoline', 'rope', 'jetpack', 'elevator', 'pogo', 'fly',
+    'umbrella', 'parachute', 'slide', 'pole', 'jump', 'skate', 'cartwheel', 'moonwalk', 'tiptoe'];
+  for (const m of modes) assert.ok(MOVE_LINES[m]?.length >= 2, `no lines for ${m}`);
+  for (const [k, lines] of Object.entries(ACTIVITY_LINES)) assert.ok(lines.length >= 2, `too few lines for ${k}`);
+  assert.deepEqual(FISH_CATCHES.map(c => c.item).sort(), ['boot', 'dollar', 'drop', 'fish']);
+  assert.ok(PRO_TIPS.every(t => t.startsWith('Tip: ')));
+  assert.equal(new Set(BUDDY_JOKES).size, BUDDY_JOKES.length, 'a joke is repeated');
+});
+
+test("what's next: no study, an empty study, the sample", () => {
+  assert.equal(whatsNext(null).target, '.hero-actions');
+  const empty = whatsNext(newStudy('x'));
+  assert.equal(typeof empty.step, 'number');
+  assert.ok(empty.step < 6, 'an empty study should be sent to a data step');
+  const sample = makeSampleStudy();
+  const n = whatsNext(sample);
+  assert.ok(n.step >= 0 && n.step <= 7);
+  assert.ok(!/Step \d+, Step/.test(n.say), n.say);
+  // A blocking finding wins over everything else.
+  const err = validateStudy(sample).find(f => f.severity === 'error');
+  if (err) assert.equal(n.step, err.step);
+});
+
+test('explain and glossary', () => {
+  for (let i = 0; i < 8; i++) assert.ok(explainStep(i).length > 20, `step ${i}`);
+  assert.match(explainStep('dashboard'), /dashboard/);
+  assert.match(glossaryFor('Median Household Income — MONTHLY ($)'), /MHI/);
+  assert.match(glossaryFor('Inflation Rate (%/yr)'), /13%/);
+  assert.match(glossaryFor('Block 2 rate per 1,000 gallons'), /per 1,000/);
+  assert.match(glossaryFor('Target Fund Balance ($)'), /cushion/);
+  assert.match(glossaryFor('Revenue Growth (%/yr)'), /Growth/);
+  assert.equal(glossaryFor('Separately metered accounts'), null, '"rate" inside a word is not a rate');
+  assert.equal(glossaryFor(''), null);
+  assert.equal(glossaryFor('Something unrelated'), null);
+});
+
+test('step findings: only that step, never info, capped', () => {
+  const s = makeSampleStudy();
+  for (let step = 0; step < 8; step++) {
+    const got = stepFindings(s, step, { limit: 1 });
+    assert.ok(got.length <= 1);
+    const expected = validateStudy(s).filter(f => f.step === step && f.severity !== 'info');
+    assert.equal(got.length, Math.min(1, expected.length));
+  }
+  assert.deepEqual(stepFindings(null, 2), []);
+  assert.deepEqual(stepFindings(s, 'dashboard'), []);
 });

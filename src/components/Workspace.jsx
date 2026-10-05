@@ -9,6 +9,7 @@ import { ConfirmModal } from './ConfirmModal.jsx';
 import { Menu } from './Menu.jsx';
 import { StepGuide } from './StepGuide.jsx';
 import { keyEventIsOurs, isTypingTarget } from './keys.js';
+import { onBuddyEvent } from '../lib/buddyBus.js';
 import { Step1 } from '../steps/Step1.jsx';
 import { Step2 } from '../steps/Step2.jsx';
 import { Step3 } from '../steps/Step3.jsx';
@@ -64,6 +65,8 @@ export function Workspace({
   };
 
   const goTo = (n) => setStep(Math.max(0, Math.min(STEPS.length - 1, n)));
+  // Drip's "Take me there".
+  useEffect(() => onBuddyEvent((ev) => { if (ev.type === 'goto' && typeof ev.step === 'number') goTo(ev.step); }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A new step should start at the top, not wherever the last one was scrolled.
   useEffect(() => { scrollRef.current?.scrollTo?.({ top: 0 }); onStepChange?.(step); }, [step]); // eslint-disable-line react-hooks/exhaustive-deps

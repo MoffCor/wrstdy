@@ -107,15 +107,28 @@ packaging, adding it to an app).
   system goes underwater), carries a different prop on each step, follows the
   pointer with his eyes, naps when you wander off, and tells terrible water
   jokes when clicked. Drag him anywhere on the screen; "Show me" sends him to
-  the control he's talking about — walking across, then propping up a ladder,
-  floating up on a balloon, or coming down under an umbrella.
+  the control he's talking about. He gets about a dozen ways — ladder, stairs
+  he builds as he goes, trampoline, grappling rope, jetpack, elevator, pogo
+  stick, balloon; down by umbrella, parachute, slide, fire pole, or a jump he
+  doesn't always land — and across on foot, skateboard, cartwheels, tiptoe or
+  moonwalk, favouring whichever he's used least.
+- **Ask Drip** — chips under his bubble: *What's next?* (the one thing to do
+  now — fix a blocking finding, fill the next empty step, or export — with
+  *Take me there*), *Explain this* (the step in a sentence), *Joke*, and
+  *What can you do?* (a short showreel across the screen; click him to stop
+  it). Landing in a field he knows (MHI, block rates, inflation, fund balance…)
+  gets a one-line definition, once per session, and arriving on a step leads
+  with any Data Check findings there.
 - **Tour this step** — every step's guide has a button that spotlights that
   step's key sections, narrated by Drip. Toggle him from the
   header or with the `B` key; he walks out through a door at the side of the
   app when you turn him off (and back in when you turn him on), takes the
   occasional coffee run, rewinds on undo, throws a paper airplane on export,
-  sheds a tear when a study is deleted, takes notes while you type, meditates,
-  and hands out a "grand tour" achievement for visiting all eight steps. He's
+  sheds a tear when a study is deleted, takes notes while you type, and in
+  quiet moments waters his desk plant, sits on a card (sometimes fishing off
+  it), juggles, does a magic trick, takes a selfie, hula-hoops, sneezes his hat
+  off, or slips on a puddle. He hands out a "grand tour" achievement for
+  visiting all eight steps. He's
   off by default inside a canvas app and honors the reduced-motion setting.
 - **Redesigned dashboard** — hero, KPI tiles (in progress, healthy proposals,
   studies needing attention), getting-started cards, search / status filter /
