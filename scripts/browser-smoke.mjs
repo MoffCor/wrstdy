@@ -133,6 +133,19 @@ console.log('\nStandalone build');
   await page.getByRole('button', { name: /Load Sample Study/i }).click();
   await page.waitForSelector('.stepper', { timeout: 10000 });
   check('Drip follows into the workspace', await page.locator('.buddy.raised').count(), 1);
+  // Ask Drip: "What's next?" gives one concrete next step.
+  if (!(await page.locator('.buddy-bubble').count())) { await page.locator('.buddy-fig').click(); await page.waitForTimeout(300); }
+  await page.getByRole('button', { name: /What's next/ }).click();
+  await page.waitForTimeout(300);
+  check("Drip answers what's next", /^(Next|The numbers are all in)/.test(await page.locator('.buddy-bubble .sr-only').textContent()), true);
+  // The showreel sends him off; a click on him calls it off and he heads home.
+  await page.getByRole('button', { name: /What can you do/ }).click();
+  check('showreel sends Drip off on a tour',
+    await page.waitForSelector('.buddy:not(.home)', { timeout: 8000 }).then(() => true, () => false), true);
+  await page.locator('.buddy-fig').dispatchEvent('click');
+  await page.waitForSelector('.buddy.home', { timeout: 12000 });
+  await page.waitForTimeout(800);
+  check('a click ends the showreel and packs up his gear', await page.locator('.buddy-gear').count(), 0);
   // The actions menu must open above the stepper, and Duplicate must work.
   await page.getByRole('button', { name: 'Study actions' }).click();
   await page.getByRole('menuitem', { name: /Duplicate study/ }).click({ timeout: 5000 });
@@ -244,6 +257,22 @@ console.log('\nStandalone build');
   check('study survives a reload', await page.locator('.sb-nm').count(), n => n > 0);
 
   check('no console errors', errors.filter(e => !/favicon|DevTools/i.test(e)).length, 0);
+  await page.close();
+}
+
+// Largest text size in a short window: the step bar must stay on screen, and
+// Drip must stand just above it rather than at a fixed height.
+{
+  const page = await browser.newPage({ viewport: { width: 1024, height: 640 } });
+  await page.addInitScript(() => { localStorage.setItem('wrs-text-zoom', '1.6'); localStorage.setItem('wrs-tour-seen-v1', '1'); });
+  await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: /Load Sample Study/i }).click();
+  await page.waitForSelector('.ws-nv', { timeout: 10000 });
+  await page.waitForTimeout(2500);
+  const nav = await page.locator('.ws-nv').boundingBox();
+  check('step bar stays on screen at the largest text size', nav.y + nav.height <= 641, true);
+  const drip = await page.locator('.buddy.home .buddy-fig').boundingBox().catch(() => null);
+  check('Drip stands just above the step bar', !!drip && drip.y + drip.height <= nav.y && nav.y - (drip.y + drip.height) < 40, true);
   await page.close();
 }
 

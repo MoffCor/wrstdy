@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BUDDY_JOKES, BUDDY_PROPS, IDLE_QUIPS, WAKE_LINES, DRAG_LINES, DIZZY_LINES,
-  BUDDY_EVENTS, BYE_LINES, BACK_LINES, COFFEE_LINES, COFFEE_BACK_LINES, TYPING_LINES,
+  BUDDY_EVENTS, BYE_LINES, SHOWREEL_OPENERS, SHOWREEL_CLOSERS, shuffled, BACK_LINES, COFFEE_LINES, COFFEE_BACK_LINES, TYPING_LINES,
   HOVER_LINES, MEDITATE_LINES, WATCH_LINES, TOUR_DONE_LINE,
-  LADDER_LINES, BALLOON_LINES, UMBRELLA_LINES, FLY_LINES,
+  FLY_LINES, MOVE_LINES, LANDING_LINES, SPLAT_LINES, ACTIVITY_LINES, FISH_CATCHES, PRO_TIPS,
+  whatsNext, explainStep, glossaryFor,
+  PHONE_CALLS, WATER_LINES, SWEEP_LINES, READ_LINES, LEAN_LINES, PERCH_LINES, WELCOME_BACK_LINES,
+  plantStage,
   buddyOpening, buddyMetrics, buddyReaction, pick, seasonal,
 } from '../lib/buddy.js';
-import { onBuddyEvent } from '../lib/buddyBus.js';
+import { onBuddyEvent, buddyEvent } from '../lib/buddyBus.js';
+import { DripGear } from './DripGear.jsx';
+import { getSetting, setSetting } from '../platform/host.js';
+import { useTextZoom } from './TextSizeMenu.jsx';
 
 const W = 64;            // rendered figure width (px)
+const PLANT_SETTING = 'wrs-buddy-plant';
 const MARGIN = 14;       // keep-out from the app's edges
 const SLEEP_AFTER = 75_000;
 const REACT_COOLDOWN = 7000;
@@ -20,11 +27,26 @@ const POSE_MS = {
   thumbs: 1700, dizzy: 2800, land: 480, wake: 1000, moonwalk: 2400,
   rewind: 1100, throw: 1100, sad: 3400, scribble: 2200, shy: 1500, meditate: 5200,
   kick: 1400, watch: 2400, emerge: 700, exit: 800,
+  water: 2800, sweep: 3200, read: 4600, lean: 6500, clap: 800, getup: 900,
+  trip: 2600, slip: 3000, sneeze: 2200, hiccup: 3200, yoyo: 3200, juggle: 4200, jumprope: 3600,
+  hula: 3600, selfie: 2400, magic: 2600, stretch: 1800, fish: 6500,
 };
 const TRICKS = ['jump', 'flip', 'spin', 'dance', 'moonwalk'];
-const IDLES = ['fidget', 'think', 'look', 'tap', 'sit', 'whistle', 'look', 'tap', 'meditate', 'kick', 'watch', 'coffee'];
+// What he gets up to between conversations, every few seconds. A quarter of
+// the time it's something small; otherwise one of the bits below, picking
+// whichever he's done least so all of them come round early. Outings (a
+// coffee run, climbing onto a card, a wander) only when his bubble is closed.
+const SMALL_IDLES = ['look', 'tap', 'fidget', 'think', 'whistle', 'watch', 'kick', 'stretch'];
+const BIG_IDLES = [
+  'water', 'read', 'sweep', 'phone', 'lean', 'meditate', 'sit', 'trip', 'slip', 'sneeze', 'hiccup',
+  'yoyo', 'juggle', 'jumprope', 'hula', 'selfie', 'magic', 'plane', 'protip',
+];
+const OUTINGS = ['perch', 'coffee', 'wander'];
 const RESTING = new Set(['idle', 'juggle']);
+// Poses that keep him sitting on a card's top edge.
+const PERCHED = new Set(['perch', 'fish', 'reel']);
 
+const ZOOM_WORKS = typeof CSS !== 'undefined' && !!CSS.supports?.('zoom', '2');
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 // Reveal speech a few characters at a time, like he's actually talking.
@@ -91,10 +113,30 @@ function Prop({ kind }) {
         <path d="M41 53 h9 l3 3 v12 h-12 z" className="b-p-white" />
         <path d="M43.5 61 l2 2 l4 -5" className="b-p-check" />
       </g>);
-    case 'juggle': return null;
-    default: return (
-      <path className="b-prop b-drop" key="drop" d="M47 59 c0 0 -4 5 -4 7.5 a4 4 0 0 0 8 0 c0 -2.5 -4 -7.5 -4 -7.5z" />
-    );
+    case 'can': return (
+      <g className="b-prop" key="can">
+        <path d="M40 56 h11 v9 a2 2 0 0 1 -2 2 h-7 a2 2 0 0 1 -2 -2z" className="b-p-can" />
+        <path d="M51 58 l7 -5" className="b-p-spout" />
+        <path d="M42 56 q3.5 -5 7 0" className="b-p-line" />
+      </g>);
+    case 'phone': return (
+      <g className="b-prop" key="phone">
+        <rect x="43" y="53" width="5.5" height="9.5" rx="1.2" className="b-p-dark" />
+        <rect x="44" y="54.5" width="3.5" height="5.5" rx=".4" className="b-p-screen" />
+      </g>);
+    case 'broom': return (
+      <g className="b-prop" key="broom">
+        <line x1="44" y1="54" x2="60" y2="92" className="b-p-handle" />
+        <path d="M56 88 l10 -4 l4 10 l-12 4z" className="b-p-bristle" />
+      </g>);
+    case 'book': return (
+      <g className="b-prop" key="book">
+        <path d="M37 52 l9 2 l9 -2 v11 l-9 2 l-9 -2z" className="b-p-white" />
+        <path d="M46 54 v11" className="b-p-line thin" />
+        <path className="b-page" d="M46 54 l8 -1.6 v10 l-8 1.6z" />
+      </g>);
+    // Nothing in hand (the juggling drops and the wand are part of the figure).
+    default: return null;
   }
 }
 
@@ -151,42 +193,108 @@ function Face({ expr }) {
   );
 }
 
+// His desk plant. Stage 1 is a sprout; by stage 4 it has a flower.
+function Plant({ stage }) {
+  return (
+    <svg viewBox="0 0 30 44" width="30" height="44">
+      <path className="pl-stem" d={stage >= 3 ? 'M15 33 q-2 -12 1 -24' : stage === 2 ? 'M15 33 q-1 -8 0 -16' : 'M15 33 v-8'} />
+      <ellipse className="pl-leaf" cx="11" cy={stage >= 2 ? 26 : 26} rx="4.5" ry="2.2" transform={`rotate(-30 11 ${26})`} />
+      <ellipse className="pl-leaf" cx="19" cy="27" rx="4.5" ry="2.2" transform="rotate(30 19 27)" />
+      {stage >= 2 && <ellipse className="pl-leaf" cx="10.5" cy="19" rx="4" ry="2" transform="rotate(-35 10.5 19)" />}
+      {stage >= 3 && <ellipse className="pl-leaf" cx="20" cy="15" rx="4" ry="2" transform="rotate(35 20 15)" />}
+      {stage >= 4 && <><circle className="pl-petal" cx="16" cy="7" r="3.6" /><circle className="pl-center" cx="16" cy="7" r="1.5" /></>}
+      <path className="pl-pot" d="M7 33 h16 l-2 10 h-12z" />
+      <rect className="pl-rim" x="6" y="31" width="18" height="3" rx="1" />
+    </svg>
+  );
+}
+
 /**
  * Drip himself — the SVG figure, with no behaviour. Poses and moods come from
  * classes on an ancestor (`.buddy.pose-wave`, `.expr-…`), so the same figure
  * animates in the corner and inside the guided tour.
  */
-export function DripFigure({ prop = 'drop', expr = 'happy', badge = null }) {
+export function DripFigure({ prop = 'none', expr = 'happy', badge = null }) {
   return (
     <svg viewBox="0 0 64 104" width={W} height={104} aria-hidden="true">
       <ellipse className="b-shadow" cx="32" cy="100" rx="16" ry="3" />
       <g className="b-flip"><g className="b-all">
-        <g className="b-leg b-leg-l"><line x1="32" y1="64" x2="22" y2="94" /><line x1="22" y1="94" x2="16" y2="95" /></g>
-        <g className="b-leg b-leg-r"><line x1="32" y1="64" x2="42" y2="94" /><line x1="42" y1="94" x2="48" y2="95" /></g>
+        {/* Things he stands on or swings, which move with his whole body. */}
+        <g className="b-skate"><rect x="8" y="96" width="48" height="3" rx="1.5" /><circle cx="15" cy="101" r="2.2" /><circle cx="49" cy="101" r="2.2" /></g>
+        <g className="b-pogo"><path d="M40 46 V108" className="pg-pole" /><path d="M35 46 h10" className="pg-peg" /><path d="M33 93 h14" className="pg-peg" /><path d="M40 98 l-3 2 l6 2 l-6 2 l3 2" className="pg-spring" /></g>
+        <g className="b-jrope"><path d="M18 60 Q32 -24 46 60" /></g>
+        {/* Two-segment limbs: hips/shoulders rotate the whole limb, knees and
+            elbows bend the lower half. */}
+        <g className="b-leg b-leg-l">
+          <line x1="32" y1="64" x2="27" y2="79" />
+          <g className="b-shin b-shin-l"><line x1="27" y1="79" x2="22" y2="94" /><line x1="22" y1="94" x2="16" y2="95" /></g>
+        </g>
+        <g className="b-leg b-leg-r">
+          <line x1="32" y1="64" x2="37" y2="79" />
+          <g className="b-shin b-shin-r"><line x1="37" y1="79" x2="42" y2="94" /><line x1="42" y1="94" x2="48" y2="95" /></g>
+        </g>
         <g className="b-upper">
+          <g className="b-jet">
+            <rect x="22" y="40" width="8" height="15" rx="2" className="jt-pack" />
+            <path d="M23 55 L26 70 L29 55z" className="jt-flame" />
+          </g>
           <line className="b-body" x1="32" y1="36" x2="32" y2="64" />
-          <g className="b-arm b-arm-l"><line x1="32" y1="42" x2="18" y2="60" /></g>
+          <g className="b-arm b-arm-l">
+            <line x1="32" y1="42" x2="25" y2="51" />
+            <g className="b-fore b-fore-l"><line x1="25" y1="51" x2="18" y2="60" /></g>
+          </g>
           <g className="b-arm b-arm-r">
-            <line x1="32" y1="42" x2="46" y2="60" />
-            <Prop kind={prop} />
+            <line x1="32" y1="42" x2="39" y2="51" />
+            <g className="b-fore b-fore-r">
+              <line x1="39" y1="51" x2="46" y2="60" />
+              <Prop kind={prop} />
+              <g className="b-yoyo"><line x1="46" y1="60" x2="46" y2="83" className="yo-string" /><g className="yo-toy"><circle cx="46" cy="86.5" r="3.6" className="yo-body" /><path d="M42.4 86.5 h7.2" className="yo-groove" /></g></g>
+              <g className="b-rod">
+                <line x1="46" y1="60" x2="72" y2="30" className="rod-pole" />
+                <line x1="72" y1="30" x2="72" y2="128" className="rod-line" />
+                <circle cx="72" cy="122" r="2.4" className="rod-bobber" />
+                <g className="rod-catch">
+                  <path className="c-fish" d="M66 132 q6 -5 12 0 q-6 5 -12 0z M78 132 l4 -3 v6z" />
+                  <text className="c-dollar" x="68" y="136">$</text>
+                  <path className="c-boot" d="M67 126 h6 v6 h5 v4 h-11z" />
+                  <path className="c-drop" d="M72 126 c0 0 -4 5 -4 7.5 a4 4 0 0 0 8 0 c0 -2.5 -4 -7.5 -4 -7.5z" />
+                </g>
+              </g>
+              <g className="b-wand"><line x1="46" y1="60" x2="58" y2="44" className="wand-stick" /><circle cx="58" cy="44" r="1.6" className="wand-tip" /></g>
+              <g className="b-balloon"><path d="M46 60 q-3 -18 4 -34" className="b-string" /><ellipse cx="50" cy="20" rx="8" ry="10" className="b-balloon-body" /><path d="M47 15 a3 4 0 0 1 3 -3" className="b-p-glint" /></g>
+              <g className="b-umbrella"><path d="M46 60 v-30" className="b-string" /><path d="M30 31 q16 -20 32 0 q-4 -3 -8 0 q-4 -3 -8 0 q-4 -3 -8 0 q-4 -3 -8 0z" className="b-canopy" /></g>
+            </g>
           </g>
           <g className="b-head">
             <g className="b-head-track">
               <circle className="b-face" cx="32" cy="24" r="11" />
               <Face expr={expr} />
-              <path className="b-hat" d="M20 17 q12 -14 24 0 z" />
-              <rect className="b-brim" x="18" y="16" width="28" height="3" rx="1.5" />
-              <Badge kind={badge} />
+              <g className="b-hatg">
+                <path className="b-hat" d="M20 17 q12 -14 24 0 z" />
+                <rect className="b-brim" x="18" y="16" width="28" height="3" rx="1.5" />
+                <Badge kind={badge} />
+              </g>
               <path className="b-sweat" d="M43.5 18 c0 0 -2 3 -2 4.4 a2 2 0 0 0 4 0 c0 -1.4 -2 -4.4 -2 -4.4z" />
             </g>
           </g>
-          {prop === 'juggle' && (
-            <g className="b-juggle">
-              {[0, 1, 2].map(i => <path key={i} className={'b-jdrop j' + i} d="M32 -21 c0 0 -3 4 -3 6 a3 3 0 0 0 6 0 c0 -2 -3 -6 -3 -6z" />)}
-            </g>
-          )}
+          {/* Juggling drops: shown whenever he juggles, not only on Step 6. */}
+          <g className="b-juggle">
+            {[0, 1, 2].map(i => <path key={i} className={'b-jdrop j' + i} d="M32 -21 c0 0 -3 4 -3 6 a3 3 0 0 0 6 0 c0 -2 -3 -6 -3 -6z" />)}
+          </g>
+          <ellipse className="b-hoop" cx="32" cy="66" rx="17" ry="4.5" />
+          <g className="b-chute">
+            <path d="M6 -2 Q32 -34 58 -2 Q51 -7 45 -2 Q38 -8 32 -2 Q26 -8 19 -2 Q13 -7 6 -2z" className="ch-canopy" />
+            <path d="M8 -2 L17 25 M20 -4 L17 25 M56 -2 L47 25 M44 -4 L47 25" className="ch-lines" />
+          </g>
         </g>
-      </g></g>
+      </g>
+        {/* Ground effects: in the flip group (so "behind him" follows his
+            direction) but outside b-all (so they stay on the ground). */}
+        <g className="b-elev"><rect x="6" y="97" width="52" height="4" rx="1" className="el-floor" /><path d="M8 97 V70 M56 97 V70" className="el-rail" /></g>
+        <g className="b-dust"><circle cx="16" cy="96" r="2.4" /><circle cx="10" cy="95" r="1.8" /><circle cx="22" cy="97" r="1.5" /></g>
+        <g className="b-water"><circle cx="63" cy="64" r="1.3" /><circle cx="66" cy="72" r="1.2" /><circle cx="69" cy="81" r="1.1" /></g>
+        <g className="b-sweepdust"><circle cx="70" cy="95" r="2" /><circle cx="76" cy="93" r="1.5" /><circle cx="73" cy="97" r="1.2" /></g>
+      </g>
       <g className="b-fx">
         <text className="b-z z1" x="44" y="12">z</text>
         <text className="b-z z2" x="49" y="6">z</text>
@@ -195,6 +303,13 @@ export function DripFigure({ prop = 'drop', expr = 'happy', badge = null }) {
         <text className="b-note n2" x="48" y="14">♫</text>
         <text className="b-q" x="46" y="8">?</text>
         <text className="b-rw" x="40" y="10">⏪</text>
+        {/* Beside his face: moved across when he faces left. */}
+        <g className="b-side">
+          <text className="b-achoo" x="40" y="16">achoo!</text>
+          <text className="b-hic" x="44" y="18">hic</text>
+          <circle className="b-flash" cx="54" cy="18" r="9" />
+        </g>
+        <g className="b-magic"><path className="mg-drop" d="M32 2 c0 0 -4 5 -4 7.5 a4 4 0 0 0 8 0 c0 -2.5 -4 -7.5 -4 -7.5z" /><text x="18" y="4">✦</text><text x="42" y="0">✧</text><text x="26" y="-6">✦</text></g>
         <text className="b-om" x="38" y="16">ommm</text>
         <circle className="b-pebble" cx="50" cy="96" r="2.2" />
         <g className="b-cloud" transform="translate(0 -9)">
@@ -203,7 +318,7 @@ export function DripFigure({ prop = 'drop', expr = 'happy', badge = null }) {
           <line className="rd2" x1="29" y1="9" x2="28" y2="13" />
           <line className="rd3" x1="35" y1="9" x2="34" y2="13" />
         </g>
-        <g className="b-stars"><text x="20" y="6">✦</text><text x="38" y="2">✧</text><text x="29" y="-2">✦</text></g>
+        <g className="b-stars-at"><g className="b-stars"><text x="20" y="6">✦</text><text x="38" y="2">✧</text><text x="29" y="-2">✦</text></g></g>
       </g>
     </svg>
   );
@@ -251,7 +366,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   const [moodOverride, setMoodOverride] = useState(null);
   const [x, setX] = useState(null);               // null = parked at home (bottom-right)
   const [y, setY] = useState(null);
-  const [ladder, setLadder] = useState(null);     // { left, bottom, height, state }               // CSS bottom offset; null = on the floor
+  const [gear, setGear] = useState(null);         // whatever he's propped up to get around (see DripGear)
   const [face, setFace] = useState('left');
   const [confetti, setConfetti] = useState(null);
   const [dragging, setDragging] = useState(false);
@@ -260,10 +375,34 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   const [propOverride, setPropOverride] = useState(null); // e.g. the mug after a coffee run
   const [plane, setPlane] = useState(null);        // paper airplane after an export
   const badge = useMemo(() => seasonal().badge, []);
+  // His plant: planted the first time he appears, grows with the days.
+  const plant = useMemo(() => {
+    let since = getSetting(PLANT_SETTING);
+    if (!since) { since = new Date().toISOString(); setSetting(PLANT_SETTING, since); }
+    return plantStage(since);
+  }, []);
+  const [plantPerk, setPlantPerk] = useState(0);
+  const [balloonAway, setBalloonAway] = useState(null);
+  const [catchItem, setCatchItem] = useState(null); // what's on the end of the fishing line
+  const perchRef = useRef(false);
+  const wanderRef = useRef(false);   // strolled off on his own: he'll come back
+  const reelRef = useRef(false);     // mid "What can you do?" showreel
+  const gearRef = useRef(null);
+  gearRef.current = gear;
+  // Props an activity borrows (the watering can, the phone…). Restored on a
+  // timer of its own, so an interruption that clears his other timers can't
+  // leave him holding a broom forever.
+  const propTimer = useRef(null);
+  const withProp = useCallback((kind, ms) => {
+    clearTimeout(propTimer.current);
+    setPropOverride(kind);
+    propTimer.current = setTimeout(() => setPropOverride(p => (p === kind ? null : p)), ms);
+  }, []);
+  useEffect(() => () => clearTimeout(propTimer.current), []);
   const bubbleRef = useRef(true);
   bubbleRef.current = bubble;
 
-  const prop = propOverride || BUDDY_PROPS[context] || 'drop';
+  const prop = propOverride || BUDDY_PROPS[context] || 'none';
   const rest = prop === 'juggle' ? 'juggle' : 'idle';
   const setPose = useCallback((p) => {
     setPoseState(prev => { const next = typeof p === 'function' ? p(prev) : p; poseRef.current = next; return next; });
@@ -272,7 +411,8 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   const later = useCallback((fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; }, []);
   const spotRef = useRef(null); // the element currently pulsing from "Show me"
   const clearSpot = () => { spotRef.current?.classList.remove('buddy-spot'); spotRef.current = null; };
-  const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; clearSpot(); };
+  // Anything that interrupts him also packs away whatever he'd set up.
+  const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; clearSpot(); setGear(null); setCatchItem(null); };
   useEffect(() => clearTimers, []);
 
   // Play a one-shot pose, then settle back to rest (unless something else took over).
@@ -306,6 +446,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   }, [later]);
 
   const appEl = () => rootRef.current?.closest('.wrs-app');
+  const zoom = useTextZoom();
   // The app is CSS-zoomed by the text-size setting, so screen pixels from
   // getBoundingClientRect are `scale` times the CSS pixels `left` is set in.
   const metrics = () => {
@@ -316,23 +457,66 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     const myW = rootRef.current?.offsetWidth || W;
     const myH = rootRef.current?.offsetHeight || 104;
     const height = rect.height / scale;
-    return { rect, scale, width: rect.width / scale, height, max: rect.width / scale - myW - MARGIN, maxY: height - myH - MARGIN };
+    // Pointer coordinates are always on-screen pixels. Element rects are too
+    // on current engines, but older zoom (Safari, older Chrome) reports them
+    // in the app's own unzoomed pixels — so pointer maths uses the zoom itself.
+    const pointer = ZOOM_WORKS ? zoom : 1;
+    return { rect, scale, pointer, width: rect.width / scale, height, max: rect.width / scale - myW - MARGIN, maxY: height - myH - MARGIN };
   };
   const findTarget = (sel) => (sel ? appEl()?.querySelector(sel) : null);
+
+  // In a study he stands just above the step navigation bar. Measured rather
+  // than fixed: the bar's height changes with the text size and the width of
+  // the window.
+  const [floor, setFloor] = useState(58);
+  const floorRef = useRef(58);
+  const inStudy = context !== 'dashboard';
+  useEffect(() => {
+    const app = appEl();
+    if (!app || !inStudy) return undefined;
+    const measure = () => {
+      const m = metrics();
+      const nav = app.querySelector('.ws-nv');
+      let f = 10;
+      if (m && nav) {
+        const r = nav.getBoundingClientRect();
+        if (r.height > 0 && r.top < m.rect.bottom) f = Math.round((m.rect.bottom - r.top) / m.scale) + 10;
+      }
+      if (f !== floorRef.current) { floorRef.current = f; setFloor(f); }
+    };
+    measure();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    ro?.observe(app);
+    const nav = app.querySelector('.ws-nv');
+    if (nav) ro?.observe(nav);
+    window.addEventListener('resize', measure);
+    return () => { ro?.disconnect(); window.removeEventListener('resize', measure); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inStudy, zoom]);
   const tip = tips[idx % Math.max(1, tips.length)];
+  const target = extra ? extra.target : tip?.target;
 
   // Only offer "Show me" when the target is on screen right now — checked
   // after each render because step content mounts alongside him.
   const [hasTarget, setHasTarget] = useState(false);
-  useEffect(() => { setHasTarget(!!findTarget(tip?.target)); });
+  useEffect(() => { setHasTarget(!!findTarget(target)); });
 
-  // Walk (or, when the trip includes a climb, fly) to a spot. `nextX` null
-  // means home; `nextY` is a CSS bottom offset, null meaning the floor.
-  // Getting somewhere. Along the same level he walks (or runs, if it's far).
-  // A change of height is a two-part trip: walk across first, then go up or
-  // down by whatever's handy — a ladder he props up, a balloon, an umbrella
-  // on the way down, or (rarely) just flying. `nextX` null means home;
-  // `nextY` is a CSS bottom offset, null meaning the floor.
+  // Getting somewhere. A trip that changes height has two legs: going up, he
+  // crosses first and then climbs; coming down, he gets down first and then
+  // crosses. Each leg picks a way of travelling, preferring whichever he has
+  // used least, so every one of them turns up early instead of the same two
+  // on repeat. `nextX` null means home; `nextY` is a CSS bottom offset, null
+  // meaning the floor.
+  const usage = useRef({});
+  const choose = useCallback((list) => {
+    const u = usage.current;
+    const least = Math.min(...list.map(k => u[k] || 0));
+    const k = pick(list.filter(m => (u[m] || 0) === least));
+    u[k] = (u[k] || 0) + 1;
+    return k;
+  }, []);
+  const moveAside = (mode) => { if (Math.random() < 0.45) say(pick(MOVE_LINES[mode] || FLY_LINES), 2400); };
+
   const walkTo = useCallback((nextX, then, nextY = null) => {
     const m = metrics();
     const me = rootRef.current;
@@ -341,63 +525,194 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     const cur = (r.left - m.rect.left) / m.scale;
     const curY = (m.rect.bottom - r.bottom) / m.scale;
     const myH = me.offsetHeight || 104;
-    const floor = me.classList.contains('raised') ? 58 : 10;
-    const dest = nextX == null ? m.max : Math.max(MARGIN, Math.min(m.max, nextX));
+    const floor = me.classList.contains('raised') ? floorRef.current : 10;
+    const clampX = (v) => Math.max(MARGIN, Math.min(m.max, v));
+    const dest = nextX == null ? m.max : clampX(nextX);
     const destY = nextY == null ? floor : Math.max(MARGIN, Math.min(m.maxY, nextY));
     const home = () => { if (nextX == null) { setX(null); setFace('left'); } if (nextY == null) setY(null); };
     if (Math.hypot(dest - cur, destY - curY) < 4) { setX(nextX == null ? null : dest); setY(nextY == null ? null : destY); then?.(); return; }
 
     setX(cur); // pin the current spot so the move animates
     setY(curY);
+    const timing = (ms, ease = 'linear') => { me.style.setProperty('--walk-ms', `${ms}ms`); me.style.setProperty('--walk-ease', ease); };
+    const plain = reducedMotion();
+    const dy = destY - curY;
+    const up = dy > 0;
+    const vMode = Math.abs(dy) <= 30 ? null
+      : plain ? 'fly'
+        : choose(up ? ['ladder', 'balloon', 'stairs', 'trampoline', 'rope', 'jetpack', 'elevator', 'pogo', 'fly']
+          : ['umbrella', 'parachute', 'slide', 'pole', 'jump', 'ladder', 'rope']);
+    const dirToDest = dest >= cur ? 1 : -1;
+    // Diagonal ways of travelling cover some of the horizontal distance.
+    const stairsRun = vMode === 'stairs' ? Math.min(Math.abs(dy) * 0.9, 220) : 0;
+    const slideRun = vMode === 'slide' ? Math.min(Math.abs(dy) * 0.9, 220) : 0;
 
-    const vertical = (after) => {
-      const dy = destY - curY;
-      if (Math.abs(dy) <= 30) { setY(destY); after(); return; }
-      const up = dy > 0;
-      const mode = reducedMotion() ? 'fly'
-        : up ? pick(['ladder', 'ladder', 'ladder', 'balloon', 'fly'])
-          : pick(['ladder', 'ladder', 'umbrella', 'umbrella']);
-      const ms = Math.round(Math.min(2600, Math.max(700, Math.abs(dy) * (mode === 'ladder' ? 7 : 3.2))));
-      const go = () => {
-        me.style.setProperty('--walk-ms', `${ms}ms`);
-        setPose(mode === 'ladder' ? 'climb' : mode === 'fly' ? 'fly' : mode);
-        requestAnimationFrame(() => setY(destY));
-        later(() => after(), ms);
-      };
-      if (mode === 'ladder') {
-        // Prop the ladder up, climb, fold it away behind him.
-        const bottom = Math.min(curY, destY);
-        setLadder({ left: dest + 15, bottom, height: Math.abs(dy) + myH * 0.9, state: 'up', key: Date.now() });
-        setFace('right');
-        if (Math.random() < 0.3) say(pick(LADDER_LINES), 2400);
-        later(go, 450);
-        later(() => setLadder(l => (l ? { ...l, state: 'fold' } : l)), 450 + ms + 150);
-        later(() => setLadder(null), 450 + ms + 600);
-      } else {
-        if (Math.random() < 0.3) say(pick(mode === 'balloon' ? BALLOON_LINES : mode === 'umbrella' ? UMBRELLA_LINES : FLY_LINES), 2400);
-        go();
-      }
-    };
-
-    const horizontal = (after) => {
-      const dist = Math.abs(dest - cur);
-      if (dist < 4) { after(); return; }
-      const running = dist > 380;
-      const ms = Math.round(Math.min(2400, Math.max(450, dist * (running ? 1.7 : 3))));
-      me.style.setProperty('--walk-ms', `${ms}ms`);
-      setFace(dest < cur ? 'left' : 'right');
+    // ── Across ──
+    const horizontal = (fromX, toX, after) => {
+      const dist = Math.abs(toX - fromX);
+      if (dist < 4) { setX(toX); after(); return; }
+      const dir = toX >= fromX ? 1 : -1;
+      const mode = plain ? 'walk'
+        : dist > 360 ? choose(['run', 'skate', 'cartwheel'])
+          : Math.random() < 0.22 ? choose(['tiptoe', 'moonwalk']) : 'walk';
+      const speed = { run: 1.7, skate: 1.4, cartwheel: 2.2, tiptoe: 5, moonwalk: 4.2, walk: 3 }[mode];
+      const ms = Math.round(Math.min(mode === 'tiptoe' ? 3200 : 2600, Math.max(450, dist * speed)));
+      timing(ms, mode === 'skate' ? 'cubic-bezier(.4, 0, .3, 1)' : 'linear');
+      // Moonwalking faces the way he came.
+      setFace(mode === 'moonwalk' ? (dir > 0 ? 'left' : 'right') : (dir > 0 ? 'right' : 'left'));
+      if (mode !== 'walk' && mode !== 'run') moveAside(mode);
       requestAnimationFrame(() => {
-        setPose(running ? 'run' : 'walk');
-        setX(dest);
+        setPose(mode);
+        setX(toX);
         later(after, ms);
       });
     };
 
+    // ── Up or down ──
+    const vertical = (fromX, toX, after) => {
+      if (!vMode) { setY(destY); after(); return; }
+      const h = Math.abs(dy);
+      const stop = (cb, ms) => later(cb, ms);
+      moveAside(vMode);
+      switch (vMode) {
+        case 'ladder': {
+          setGear({ type: 'ladder', key: Date.now(), left: fromX + 15, bottom: Math.min(curY, destY), height: h + myH * 0.9 });
+          setFace('right');
+          const ms = Math.round(Math.min(2800, Math.max(800, h * 7)));
+          stop(() => { timing(ms); setPose('climb'); requestAnimationFrame(() => setY(destY)); }, 450);
+          stop(() => setGear(g => (g ? { ...g, state: 'fold' } : g)), 450 + ms + 150);
+          stop(() => setGear(null), 450 + ms + 600);
+          stop(() => { if (up) { setPose('clap'); stop(after, POSE_MS.clap); } else after(); }, 450 + ms);
+          break;
+        }
+        case 'stairs': {
+          setGear({ type: 'stairs', key: Date.now(), x0: fromX, y0: curY, x1: toX, y1: destY });
+          const n = Math.max(3, Math.min(14, Math.round(h / 16)));
+          const ms = Math.round(Math.min(3000, Math.max(900, Math.hypot(toX - fromX, h) * 5)));
+          setFace(toX >= fromX ? 'right' : 'left');
+          stop(() => { timing(ms); setPose('walk'); requestAnimationFrame(() => { setX(toX); setY(destY); }); }, n * 45 + 200);
+          stop(() => setGear(g => (g ? { ...g, state: 'fold' } : g)), n * 45 + 200 + ms + 200);
+          stop(() => setGear(null), n * 45 + 200 + ms + 700);
+          stop(after, n * 45 + 200 + ms);
+          break;
+        }
+        case 'trampoline': {
+          setGear({ type: 'trampoline', key: Date.now(), left: fromX + 2, bottom: curY - 5 });
+          setPose('bounce');
+          const ms = Math.round(Math.min(1100, Math.max(600, h * 2.2)));
+          stop(() => { timing(ms, 'cubic-bezier(.2, .8, .3, 1)'); setPose('tuck'); requestAnimationFrame(() => setY(destY)); }, 1000);
+          stop(() => setGear(g => (g ? { ...g, state: 'fold' } : g)), 1300);
+          stop(() => setGear(null), 1800);
+          stop(() => { setPose('land'); stop(after, POSE_MS.land); }, 1000 + ms);
+          break;
+        }
+        case 'rope': {
+          // Hook thrown to the top; he climbs (or lowers himself) hand over hand.
+          setGear({ type: 'rope', key: Date.now(), left: fromX + 44, bottom: Math.min(curY, destY) + 40, height: h + 70, dir: up ? 'up' : 'down' });
+          setFace('right');
+          const ms = Math.round(Math.min(2800, Math.max(800, h * 6)));
+          stop(() => { timing(ms); setPose('climb'); requestAnimationFrame(() => setY(destY)); }, up ? 500 : 300);
+          stop(() => setGear(g => (g ? { ...g, state: 'fold' } : g)), (up ? 500 : 300) + ms + 100);
+          stop(() => setGear(null), (up ? 500 : 300) + ms + 500);
+          stop(after, (up ? 500 : 300) + ms);
+          break;
+        }
+        case 'jetpack': {
+          const ms = Math.round(Math.min(2000, Math.max(800, h * 3.5)));
+          setPose('jetpack');
+          stop(() => { timing(ms, 'cubic-bezier(.45, 0, .55, 1)'); requestAnimationFrame(() => setY(destY)); }, 350);
+          stop(() => { setPose('land'); stop(after, POSE_MS.land); }, 350 + ms);
+          break;
+        }
+        case 'elevator': {
+          const ms = Math.round(Math.min(2600, Math.max(900, h * 5)));
+          setPose('elevator');
+          stop(() => { timing(ms, 'cubic-bezier(.45, 0, .55, 1)'); requestAnimationFrame(() => setY(destY)); }, 300);
+          stop(() => { say('Ding.', 1400); after(); }, 300 + ms);
+          break;
+        }
+        case 'pogo': {
+          const hops = Math.max(2, Math.min(5, Math.round(h / 60)));
+          setPose('pogo');
+          for (let k = 1; k <= hops; k++) {
+            stop(() => { timing(380, 'cubic-bezier(.2, .8, .3, 1)'); setY(curY + (dy * k) / hops); }, 200 + (k - 1) * 480);
+          }
+          stop(after, 200 + hops * 480);
+          break;
+        }
+        case 'balloon':
+        case 'umbrella':
+        case 'parachute': {
+          const ms = Math.round(Math.min(2800, Math.max(900, h * (vMode === 'balloon' ? 3.4 : 4))));
+          setPose(vMode);
+          stop(() => { timing(ms, vMode === 'balloon' ? 'cubic-bezier(.4, 0, .6, 1)' : 'cubic-bezier(.2, .4, .4, 1)'); requestAnimationFrame(() => setY(destY)); }, 250);
+          stop(() => {
+            if (vMode === 'balloon') {
+              // He lets go at the top; the balloon carries on without him.
+              setBalloonAway({ key: Date.now(), left: toX + 40, bottom: destY + 70 });
+              later(() => setBalloonAway(null), 3400);
+            }
+            if (vMode === 'parachute') { setPose('land'); stop(after, POSE_MS.land); } else after();
+          }, 250 + ms);
+          break;
+        }
+        case 'slide': {
+          setGear({ type: 'slide', key: Date.now(), x0: fromX, y0: curY, x1: toX, y1: destY });
+          setFace(toX >= fromX ? 'right' : 'left');
+          const ms = Math.round(Math.min(1800, Math.max(700, Math.hypot(toX - fromX, h) * 2.2)));
+          stop(() => { timing(ms, 'cubic-bezier(.5, 0, .9, .6)'); setPose('slide'); requestAnimationFrame(() => { setX(toX); setY(destY); }); }, 450);
+          stop(() => setGear(g => (g ? { ...g, state: 'fold' } : g)), 450 + ms + 400);
+          stop(() => setGear(null), 450 + ms + 900);
+          stop(() => { setPose('land'); stop(after, POSE_MS.land); }, 450 + ms);
+          break;
+        }
+        case 'pole': {
+          setGear({ type: 'pole', key: Date.now(), left: fromX + 30, bottom: destY + 4, height: h + 80 });
+          setFace('right');
+          const ms = Math.round(Math.min(1100, Math.max(450, h * 1.8)));
+          stop(() => { timing(ms, 'cubic-bezier(.5, 0, 1, 1)'); setPose('pole'); requestAnimationFrame(() => setY(destY)); }, 400);
+          stop(() => setGear(g => (g ? { ...g, state: 'fold' } : g)), 400 + ms + 300);
+          stop(() => setGear(null), 400 + ms + 800);
+          stop(() => { setPose('land'); stop(after, POSE_MS.land); }, 400 + ms);
+          break;
+        }
+        case 'jump': {
+          // Straight down. Sometimes he sticks the landing; sometimes he doesn't.
+          const ms = Math.round(Math.min(900, Math.max(380, Math.sqrt(h) * 40)));
+          setPose('crouch');
+          stop(() => { timing(ms, 'cubic-bezier(.55, 0, 1, .45)'); setPose('fall'); requestAnimationFrame(() => setY(destY)); }, 350);
+          stop(() => {
+            if (Math.random() < 0.4) {
+              setPose('splat');
+              stop(() => setPose('getup'), 1100);
+              stop(() => { say(pick(SPLAT_LINES), 2200); setPose('clap'); stop(after, POSE_MS.clap); }, 1100 + POSE_MS.getup);
+            } else {
+              setPose('land');
+              if (Math.random() < 0.5) say(pick(LANDING_LINES), 1800);
+              stop(after, POSE_MS.land + 150);
+            }
+          }, 350 + ms);
+          break;
+        }
+        default: { // fly
+          const ms = Math.round(Math.min(2400, Math.max(700, h * 3.2)));
+          timing(ms, 'cubic-bezier(.3, .1, .3, 1)');
+          setPose('fly');
+          requestAnimationFrame(() => setY(destY));
+          stop(after, ms);
+        }
+      }
+    };
+
     const done = () => { setPose(rest); home(); then?.(); };
-    // Going up: walk over, then climb. Coming down: get down first, then walk.
-    if (destY >= curY) horizontal(() => vertical(done));
-    else vertical(() => horizontal(done));
-  }, [later, rest, setPose, say]);
+    if (up || !vMode) {
+      const climbFrom = vMode === 'stairs' ? clampX(dest - dirToDest * stairsRun) : dest;
+      horizontal(cur, climbFrom, () => vertical(climbFrom, dest, done));
+    } else {
+      const landAt = vMode === 'slide' ? clampX(cur + dirToDest * slideRun) : cur;
+      vertical(cur, landAt, () => horizontal(landAt, dest, done));
+    }
+  }, [later, rest, setPose, say, choose]);
 
   // In through the door at the side of the app: it swings open, he steps out,
   // waves, and it closes behind him.
@@ -442,9 +757,8 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   const coffeeRun = () => {
     exitThroughDoor(() => {
       later(() => {
-        setPropOverride('mug');
+        withProp('mug', 30000);
         enterThroughDoor(pick(COFFEE_BACK_LINES));
-        later(() => setPropOverride(null), 30000);
       }, 4500);
     }, pick(COFFEE_LINES));
   };
@@ -564,6 +878,221 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [act, say]);
 
+  // Landing in a field he has something to say about: a one-line definition,
+  // once per term per session.
+  useEffect(() => {
+    const app = appEl();
+    if (!app) return undefined;
+    const seen = new Set();
+    let last = 0;
+    const onFocus = (e) => {
+      const t = e.target;
+      if (!t?.matches?.('input, select, textarea') || rootRef.current?.contains(t) || busyRef.current) return;
+      const label = t.closest('.fld')?.querySelector('.flb')?.textContent || t.getAttribute('aria-label') || '';
+      const def = glossaryFor(label);
+      if (!def || seen.has(def) || Date.now() - last < 8000) return;
+      seen.add(def);
+      last = Date.now();
+      lastActive.current = Date.now();
+      if (poseRef.current === 'sleep') setPose(rest);
+      if (RESTING.has(poseRef.current)) act('think');
+      if (bubbleRef.current) setExtra({ say: def, kind: 'help' }); else say(def, 7000);
+    };
+    app.addEventListener('focusin', onFocus);
+    return () => app.removeEventListener('focusin', onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [act, say, rest]);
+
+  // ── Small activities ─────────────────────────────────────────────────────
+  // Each returns roughly how long it takes, so the showreel can chain them.
+  const aside = (lines, chance = 0.6, ms = 3200) => {
+    if (!bubbleRef.current && Math.random() < chance) say(pick(lines), ms);
+  };
+  const atHome = () => !rootRef.current || rootRef.current.classList.contains('home');
+  // Where he is now, in the app's CSS pixels.
+  const here = () => {
+    const m = metrics();
+    const r = rootRef.current?.getBoundingClientRect();
+    if (!m || !r) return null;
+    return { x: (r.left - m.rect.left) / m.scale, y: (m.rect.bottom - r.bottom) / m.scale };
+  };
+  const facingLeft = () => !!rootRef.current?.classList.contains('face-left');
+
+  const water = () => {
+    if (!plant || !atHome()) { act('look'); return POSE_MS.look; }
+    withProp('can', POSE_MS.water + 300);
+    setFace('left');
+    act('water');
+    later(() => setPlantPerk(Date.now()), 900);
+    aside(WATER_LINES, 0.45);
+    return POSE_MS.water;
+  };
+  const phoneCall = () => {
+    const call = pick(PHONE_CALLS);
+    const ms = 2200 * call.length + 600;
+    withProp('phone', ms);
+    act('phone', { ms });
+    if (!bubbleRef.current) call.forEach((line, i) => later(() => say(line, 2000), 300 + i * 2200));
+    return ms;
+  };
+  const sweep = () => { withProp('broom', POSE_MS.sweep + 200); act('sweep'); aside(SWEEP_LINES, 0.4); return POSE_MS.sweep; };
+  const read = () => { withProp('book', POSE_MS.read + 200); act('read'); aside(READ_LINES, 0.4, 3600); return POSE_MS.read; };
+  const lean = () => {
+    if (!atHome()) { act('tap'); return POSE_MS.tap; }
+    setFace('left');
+    act('lean');
+    aside(LEAN_LINES, 0.35);
+    return POSE_MS.lean;
+  };
+  // Simple bits: a pose, maybe a prop, maybe a line.
+  const bit = (name, { mood, prop: p, chance = 0.55, ms } = {}) => {
+    const len = ms ?? POSE_MS[name] ?? 2500;
+    if (p) withProp(p, len + 200);
+    act(name, { mood, ms: len });
+    if (ACTIVITY_LINES[name]) aside(ACTIVITY_LINES[name], chance, Math.min(3200, len + 600));
+    return len;
+  };
+  // Slips on a puddle that wasn't there a second ago.
+  const slip = () => {
+    const h = here();
+    if (!h || gearRef.current) return bit('trip', { mood: 'surprised', chance: 0.7 });
+    const left = facingLeft();
+    setGear({ type: 'puddle', key: Date.now(), left: h.x + (left ? -6 : 26), bottom: h.y + 3 });
+    later(() => setPose('slip'), 350);
+    later(() => { setPose(cur => (cur === 'slip' ? rest : cur)); }, 350 + POSE_MS.slip);
+    later(() => setGear(g => (g?.type === 'puddle' ? { ...g, state: 'fold' } : g)), 350 + POSE_MS.slip - 300);
+    later(() => setGear(g => (g?.type === 'puddle' ? null : g)), 350 + POSE_MS.slip + 400);
+    later(() => aside(ACTIVITY_LINES.slip, 0.75, 2800), 1500);
+    return 350 + POSE_MS.slip;
+  };
+  const magic = () => {
+    const len = bit('magic', { mood: 'excited', prop: 'wand', chance: 0 });
+    later(() => aside(ACTIVITY_LINES.magic, 0.7, 2800), 1500);
+    return len;
+  };
+  const selfie = () => bit('selfie', { prop: 'phone', chance: 0.6 });
+  const paperPlane = () => {
+    act('throw', { mood: 'excited' });
+    later(() => { setPlane(Date.now()); later(() => setPlane(null), 1800); }, 350);
+    aside(ACTIVITY_LINES.plane, 0.55, 2600);
+    return 1800;
+  };
+  const proTip = () => {
+    if (bubbleRef.current) return 0;
+    act('think');
+    say(pick(PRO_TIPS), 7500);
+    return POSE_MS.think;
+  };
+  const ACTIVITIES = {
+    water, phone: phoneCall, sweep, read, lean, slip, magic, selfie, plane: paperPlane, protip: proTip,
+    meditate: () => { act('meditate'); aside(MEDITATE_LINES, 0.6); return POSE_MS.meditate; },
+    sit: () => { act('sit'); aside(IDLE_QUIPS, 0.4, 3600); return POSE_MS.sit; },
+    trip: () => bit('trip', { mood: 'surprised', chance: 0.7 }),
+    sneeze: () => bit('sneeze', { chance: 0.6 }),
+    hiccup: () => bit('hiccup', { mood: 'surprised', chance: 0.6 }),
+    yoyo: () => bit('yoyo'),
+    juggle: () => bit('juggle'),
+    jumprope: () => bit('jumprope'),
+    hula: () => bit('hula'),
+    stretch: () => bit('stretch', { chance: 0.3 }),
+  };
+  const runActivity = (name) => (ACTIVITIES[name] ? ACTIVITIES[name]() : bit(name, { chance: 0 })) || 0;
+
+  // Climb up onto a card and sit on its top edge for a while, legs dangling.
+  // Sometimes he gets a fishing rod out.
+  const visibleCards = (m) => {
+    const app = appEl();
+    if (!app) return [];
+    // Anything with a solid top edge he can stand on: cards, and the step's
+    // guide panel. Not right under the header, and high enough off the floor
+    // to be worth the climb.
+    return [...app.querySelectorAll('.ws-sc .card, .ws-sc .step-guide, .kpi, .study-card, .start-card')]
+      .map(el => el.getBoundingClientRect())
+      .filter(r => r.width > 160 && r.top > m.rect.top + 160 && r.top < m.rect.bottom - 120 && r.right < m.rect.right - 20);
+  };
+  const spotOn = (m, r) => ({
+    x: (r.left - m.rect.left) / m.scale + 20 + Math.random() * Math.max(0, r.width / m.scale - 110),
+    y: (m.rect.bottom - r.top) / m.scale - 6,  // standing on its top edge
+  });
+  const fish = () => {
+    const c = pick(FISH_CATCHES);
+    setPose('fish');
+    aside(ACTIVITY_LINES.fish, 0.5, 2400);
+    later(() => { if (perchRef.current) { setCatchItem(c.item); setPose('reel'); } }, 4200);
+    later(() => { if (perchRef.current && !bubbleRef.current) say(c.say, 3000); }, 4700);
+    later(() => { setCatchItem(null); if (perchRef.current) setPose('perch'); }, POSE_MS.fish);
+  };
+  const perch = () => {
+    const m = metrics();
+    const app = appEl();
+    if (!m || !app || app.classList.contains('xnarrow')) { act('look'); return; }
+    const cards = visibleCards(m);
+    if (!cards.length) { act('look'); return; }
+    const spot = spotOn(m, pick(cards));
+    walkTo(spot.x, () => {
+      perchRef.current = true;
+      setFace(Math.random() < 0.5 ? 'left' : 'right');
+      setPose('perch');
+      aside(PERCH_LINES, 0.6, 3600);
+      if (Math.random() < 0.6) later(() => { if (perchRef.current) fish(); }, 2400);
+      later(() => { if (perchRef.current) { perchRef.current = false; setPose(rest); walkTo(null); } }, 10000 + Math.random() * 6000);
+    }, spot.y);
+  };
+  // A stroll: somewhere along the floor, or up onto a card for a look round,
+  // then back home.
+  const wander = () => {
+    const m = metrics();
+    const app = appEl();
+    if (!m || !app) { act('look'); return; }
+    let spot = { x: MARGIN + Math.random() * Math.max(0, m.max - MARGIN), y: null };
+    if (!app.classList.contains('xnarrow') && Math.random() < 0.6) {
+      const cards = visibleCards(m);
+      if (cards.length) spot = spotOn(m, pick(cards));
+    }
+    wanderRef.current = true;
+    walkTo(spot.x, () => {
+      act(pick(['look', 'think', 'whistle', 'tap', 'watch']));
+      aside(IDLE_QUIPS, 0.35, 3000);
+      const comeBack = (tries) => later(() => {
+        if (!wanderRef.current) return;
+        if (RESTING.has(poseRef.current) && !drag.current) { wanderRef.current = false; walkTo(null); } else if (tries > 0) comeBack(tries - 1);
+      }, tries === 4 ? 5500 + Math.random() * 4000 : 2500);
+      comeBack(4);
+    }, spot.y);
+  };
+
+  // A card he's sitting on can scroll away under him: hop down and go home.
+  useEffect(() => {
+    const app = appEl();
+    if (!app) return undefined;
+    const onScroll = (e) => {
+      if (!perchRef.current || rootRef.current?.contains(e.target)) return;
+      perchRef.current = false;
+      setPose(rest);
+      walkTo(null);
+    };
+    app.addEventListener('scroll', onScroll, true);
+    return () => app.removeEventListener('scroll', onScroll, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rest]);
+
+  // Back from another tab or window after a while: a small wave.
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVis = () => {
+      if (document.hidden) { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 60_000 && !busyRef.current) {
+        lastActive.current = Date.now();
+        if (poseRef.current === 'sleep') setPose(rest);
+        act('wave');
+        aside(WELCOME_BACK_LINES, 0.8, 3000);
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [act, rest]);
+
   // Eyes follow the pointer; any input wakes him; idle time puts him to sleep.
   useEffect(() => {
     let raf = 0;
@@ -576,9 +1105,11 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
         const el = rootRef.current;
         const fig = el?.querySelector('.buddy-fig');
         if (!fig) return;
+        const m = metrics();
+        const toScreen = m ? m.pointer / m.scale : 1;   // rect pixels → screen pixels
         const r = fig.getBoundingClientRect();
-        const dx = e.clientX - (r.left + r.width / 2);
-        const dy = e.clientY - (r.top + r.height * 0.23);
+        const dx = e.clientX - (r.left + r.width / 2) * toScreen;
+        const dy = e.clientY - (r.top + r.height * 0.23) * toScreen;
         const len = Math.hypot(dx, dy) || 1;
         const k = Math.min(1, len / 160);
         const flip = el.classList.contains('face-left') ? -1 : 1;
@@ -606,30 +1137,121 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     say(pick(WAKE_LINES), 4200);
   };
 
-  // A little life between conversations: stretches, foot taps, sitting down…
+  // A little life between conversations, every five to ten seconds.
   useEffect(() => {
     let t;
     const loop = () => {
       t = setTimeout(() => {
-        if (RESTING.has(poseRef.current) && !drag.current && !busyRef.current) {
-          const what = pick(IDLES);
+        if (RESTING.has(poseRef.current) && !drag.current && !busyRef.current && !reelRef.current && !perchRef.current) {
           const tiny = !!appEl()?.classList.contains('xnarrow');
-          if (what === 'coffee') {
-            // Only when nobody's mid-conversation with him, and not on a phone.
-            if (!bubble && !tiny && !reducedMotion()) coffeeRun();
-          } else {
-            act(what);
-            const aside = what === 'meditate' ? MEDITATE_LINES : what === 'watch' ? WATCH_LINES : IDLE_QUIPS;
-            if (!bubble && Math.random() < (aside === IDLE_QUIPS ? 0.4 : 0.7)) say(pick(aside), 3600);
+          const free = !bubbleRef.current && !reducedMotion();
+          const r = Math.random();
+          let done = false;
+          if (r > 0.86 && free) {
+            const o = choose(OUTINGS);
+            if (o === 'wander') { wander(); done = true; }
+            else if (atHome() && o === 'perch' && !tiny) { perch(); done = true; }
+            else if (atHome() && o === 'coffee' && !tiny) { coffeeRun(); done = true; }
+          }
+          if (!done && r > 0.25) done = runActivity(choose(BIG_IDLES)) > 0;
+          if (!done) {
+            const what = pick(SMALL_IDLES);
+            runActivity(what);
+            if (Math.random() < 0.35) aside(what === 'watch' ? WATCH_LINES : IDLE_QUIPS, 1, 3600);
           }
         }
         loop();
-      }, 9000 + Math.random() * 8000);
+      }, 5000 + Math.random() * 5000);
     };
     loop();
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [act, bubble, say]);
+  }, [act, say, choose]);
+
+  // "What can you do?": a quick tour of his ways of getting about and a few
+  // of his bits, up onto cards and back. Any click on him ends it.
+  const showreel = () => {
+    // Mid-way through his door: start once he's in.
+    if (busyRef.current) { later(showreel, 500); return; }
+    clearTimers();
+    perchRef.current = false;
+    wanderRef.current = false;
+    setBubble(false);
+    setExtra(null);
+    const m = metrics();
+    if (!m || reducedMotion()) {
+      setBubble(true);
+      setExtra({ say: 'Ladders, stairs, a trampoline, a jetpack, a pogo stick, a parachute, a fire pole, a skateboard, juggling, magic, fishing… With motion turned down, you\'ll have to take my word for it.', kind: 'joke' });
+      return;
+    }
+    reelRef.current = true;
+    const tiny = !!appEl()?.classList.contains('xnarrow');
+    const cards = tiny ? [] : shuffled(visibleCards(m));
+    const stop = (i, fx) => (cards[i] ? spotOn(m, cards[i]) : { x: m.width * fx, y: null });
+    const bits = shuffled(['juggle', 'magic', 'hula', 'yoyo', 'jumprope', 'selfie', 'sneeze', 'hiccup', 'slip']).slice(0, 3);
+    const stops = [stop(0, 0.2), stop(1, 0.55), stop(2, 0.35)];
+    const seq = [
+      (next) => { act('wave'); say(pick(SHOWREEL_OPENERS), 2600); later(next, 1700); },
+      ...stops.flatMap((p, i) => [
+        (next) => walkTo(p.x, next, p.y),
+        (next) => later(next, runActivity(bits[i]) + 300),
+      ]),
+      (next) => walkTo(null, next),
+      () => {
+        reelRef.current = false;
+        act('celebrate', { mood: 'excited' });
+        burst();
+        say(pick(SHOWREEL_CLOSERS), 3400);
+      },
+    ];
+    let i = 0;
+    const next = () => { if (reelRef.current) seq[i++]?.(next); };
+    next();
+  };
+  const stopReel = () => {
+    if (!reelRef.current) return false;
+    reelRef.current = false;
+    clearTimers();
+    setPose(rest);
+    walkTo(null);
+    say('Intermission.', 2000);
+    return true;
+  };
+
+  // Jokes come out of a shuffled bag, so none repeats until he's told them all.
+  const jokeBag = useRef([]);
+  const nextJoke = () => {
+    if (!jokeBag.current.length) jokeBag.current = shuffled(BUDDY_JOKES);
+    return jokeBag.current.pop();
+  };
+
+  // Bubble shortcuts.
+  const askNext = () => {
+    const n = whatsNext(study);
+    const onIt = typeof n.step === 'number' && n.step === context;
+    setBubble(true);
+    setExtra({ say: n.say + (onIt ? ' You\'re on it.' : ''), kind: 'help', step: onIt ? undefined : n.step, target: n.target });
+    act(onIt ? 'thumbs' : 'think');
+  };
+  const explain = () => {
+    setBubble(true);
+    setExtra({ say: explainStep(context), kind: 'help' });
+    withProp('book', 2400);
+    act('read', { ms: 2200 });
+  };
+  const tellJoke = () => {
+    setBubble(true);
+    const trick = pick(TRICKS);
+    act(trick, { mood: 'excited' });
+    if (trick === 'dance') burst();
+    setExtra({ say: nextJoke(), kind: 'joke' });
+  };
+  const takeMeThere = () => {
+    const step = extra?.step;
+    if (typeof step !== 'number') return;
+    setExtra(null);
+    buddyEvent('goto', { step });
+  };
 
   const nextTip = () => {
     setExtra(null);
@@ -639,7 +1261,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   };
 
   const showMe = () => {
-    const el = findTarget(tip?.target);
+    const el = findTarget(target);
     if (!el) return;
     el.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
     later(() => {
@@ -669,6 +1291,9 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   const poke = () => {
     if (suppressClick.current) { suppressClick.current = false; return; }
     if (busyRef.current) return;
+    if (stopReel()) return;
+    perchRef.current = false;
+    wanderRef.current = false;
     lastActive.current = Date.now();
     // Bubble tucked away: the first tap brings his tips back; tricks come after.
     if (!bubble) {
@@ -690,7 +1315,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     const trick = pick(TRICKS);
     act(trick, { mood: 'excited' });
     if (trick === 'dance') burst();
-    setExtra({ say: pick(BUDDY_JOKES), kind: 'joke' });
+    setExtra({ say: nextJoke(), kind: 'joke' });
   };
 
   // Drag him along the bottom edge.
@@ -701,7 +1326,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     if (!m || !me) return;
     const r = me.getBoundingClientRect();
     drag.current = {
-      sx: e.clientX, sy: e.clientY, scale: m.scale, moved: false, lastX: e.clientX,
+      sx: e.clientX, sy: e.clientY, scale: m.pointer, moved: false, lastX: e.clientX,
       left: (r.left - m.rect.left) / m.scale, max: m.max,
       bottom: (m.rect.bottom - r.bottom) / m.scale, maxY: m.maxY,
     };
@@ -713,7 +1338,16 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     const dx = (e.clientX - d.sx) / d.scale;
     const dy = (e.clientY - d.sy) / d.scale;
     if (!d.moved && Math.hypot(dx, dy) < 6) return;
-    if (!d.moved) { d.moved = true; setDragging(true); setPose('dangle'); setBubble(false); }
+    if (!d.moved) {
+      d.moved = true;
+      reelRef.current = false;
+      perchRef.current = false;
+      wanderRef.current = false;
+      clearTimers();
+      setDragging(true);
+      setPose('dangle');
+      setBubble(false);
+    }
     setFace(e.clientX < d.lastX ? 'left' : e.clientX > d.lastX ? 'right' : face);
     d.lastX = e.clientX;
     setX(Math.max(MARGIN, Math.min(d.max, d.left + dx)));
@@ -746,7 +1380,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     if (!bubbleRef.current && Math.random() < 0.5) say(pick(HOVER_LINES), 2200);
   };
 
-  const goHome = () => { setBubble(false); setExtra(null); if (x != null || y != null) walkTo(null); };
+  const goHome = () => { perchRef.current = false; wanderRef.current = false; reelRef.current = false; setBubble(false); setExtra(null); if (x != null || y != null) walkTo(null); };
 
   const text = extra?.say || tip?.say;
   const [typed, finishTyping, typedAll] = useTypewriter(bubble ? text : null);
@@ -759,7 +1393,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   useEffect(() => { if (!bubble) hovering.current = false; }, [bubble]);
   useEffect(() => {
     if (!bubble || !typedAll) return undefined;
-    const t = setTimeout(() => { if (!hovering.current) setBubble(false); }, 16000);
+    const t = setTimeout(() => { if (!hovering.current) setBubble(false); }, 11000);
     return () => clearTimeout(t);
   }, [bubble, typedAll, text]);
   const appWidth = metrics()?.width || 0;
@@ -773,20 +1407,30 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     celebrate: 'excited', dance: 'excited', flip: 'excited', spin: 'excited', moonwalk: 'excited', dangle: 'surprised',
     worry: 'worried', think: 'neutral', sad: 'sad', meditate: 'calm', rewind: 'excited', throw: 'excited',
     scribble: 'neutral', watch: 'neutral', exit: 'happy', emerge: 'happy',
+    phone: 'neutral', read: 'neutral', lean: 'calm', water: 'happy', sweep: 'neutral', perch: 'happy',
+    trip: 'surprised', slip: 'surprised', sneeze: 'calm', hiccup: 'surprised', selfie: 'excited', magic: 'excited',
+    fish: 'calm', reel: 'excited', fall: 'surprised', splat: 'dizzy', getup: 'neutral', crouch: 'neutral',
+    jetpack: 'excited', elevator: 'whistle', pogo: 'excited', parachute: 'happy', slide: 'excited', pole: 'excited',
+    bounce: 'excited', tuck: 'excited', cartwheel: 'excited', tiptoe: 'neutral', skate: 'happy', stretch: 'calm',
   }[pose] || moodOverride || tip?.mood || 'happy';
 
-  const raised = context === 'dashboard' ? '' : ' raised';
+  const raised = inStudy ? ' raised' : '';
+  const floorVar = { '--floor': `${floor}px` };
   return (
     <>
-    {ladder && (
-      <div
-        key={ladder.key}
-        className={`buddy-ladder no-print ladder-${ladder.state}`}
-        style={{ left: ladder.left, bottom: ladder.bottom, height: ladder.height }}
-        aria-hidden="true"
-      />
+    {plant > 0 && (
+      <div className={`buddy-plant no-print${raised}${plantPerk ? ' perk' : ''}`} key={plantPerk} style={floorVar} aria-hidden="true">
+        <Plant stage={plant} />
+      </div>
     )}
-    <div className={`buddy-door no-print door-${door}${raised}`} aria-hidden="true">
+    {balloonAway && (
+      <svg className="buddy-balloon-away no-print" key={balloonAway.key} style={{ left: balloonAway.left, bottom: balloonAway.bottom }} viewBox="0 0 20 44" aria-hidden="true">
+        <path d="M10 20 q-3 10 1 22" fill="none" stroke="#475569" strokeWidth="1" />
+        <ellipse cx="10" cy="10" rx="8" ry="10" fill="#ef4444" stroke="#991b1b" strokeWidth="1" />
+      </svg>
+    )}
+    <DripGear gear={gear} />
+    <div className={`buddy-door no-print door-${door}${raised}`} style={floorVar} aria-hidden="true">
       <div className="door-frame">
         <div className="door-inside" />
         <div className="door-panel"><span className="door-window">💧</span><span className="door-knob" /></div>
@@ -794,8 +1438,8 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     </div>
     <div
       ref={rootRef}
-      className={`buddy no-print pose-${pose} face-${face} expr-${expr} prop-${prop}${x == null ? ' home' : ''}${raised}${dragging ? ' dragging' : ''}${away ? ' away' : ''}`}
-      style={x == null && y == null ? undefined : { ...(x == null ? {} : { left: x }), ...(y == null ? {} : { bottom: y }) }}
+      className={`buddy no-print pose-${pose} face-${face} expr-${expr} prop-${prop}${PERCHED.has(pose) ? ' perched' : ''}${catchItem ? ` catch-${catchItem}` : ''}${x == null ? ' home' : ''}${raised}${dragging ? ' dragging' : ''}${away ? ' away' : ''}`}
+      style={{ ...floorVar, ...(x == null ? {} : { left: x }), ...(y == null ? {} : { bottom: y }) }}
     >
       {bubble && text && (
         <div
@@ -806,13 +1450,20 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
           onBlur={() => { hovering.current = false; }}
         >
           <button className="buddy-x" onClick={goHome} aria-label="Close Drip's tip">×</button>
-          <div className="buddy-name">Drip <span>· {extra?.kind === 'joke' ? 'comedian (self-appointed)' : extra?.kind === 'reaction' ? 'just noticed' : 'your guide'}</span></div>
+          <div className="buddy-name">Drip <span>· {{ joke: 'comedian (self-appointed)', reaction: 'just noticed', help: 'here to help' }[extra?.kind] || 'your guide'}</span></div>
           <p onClick={finishTyping} aria-hidden="true">{typed}{!typedAll && <span className="buddy-caret" />}</p>
           <span className="sr-only" role="status" aria-live="polite">{text}</span>
           <div className="buddy-actions">
-            {!extra && hasTarget && <button className="btn b-lime btn-xs" onClick={showMe}>👉 Show me</button>}
+            {typeof extra?.step === 'number' && <button className="btn b-lime btn-xs" onClick={takeMeThere}>Take me there →</button>}
+            {hasTarget && <button className="btn b-lime btn-xs" onClick={showMe}>👉 Show me</button>}
             {(tips.length > 1 || extra) && <button className="btn b-out btn-xs" onClick={nextTip}>{extra ? 'Back to tips' : 'Next tip'}</button>}
             <button className="link-btn buddy-off" onClick={onHide}>Hide Drip</button>
+          </div>
+          <div className="buddy-chips" role="group" aria-label="Ask Drip">
+            <button onClick={askNext}>🧭 What's next?</button>
+            <button onClick={explain}>💡 Explain this</button>
+            <button onClick={tellJoke}>😄 Joke</button>
+            <button onClick={showreel}>🎬 What can you do?</button>
           </div>
         </div>
       )}

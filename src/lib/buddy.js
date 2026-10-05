@@ -6,8 +6,18 @@
 // it matches, Drip offers "Show me", walks over, points, and the element
 // pulses. Selectors that don't match on the current screen are just skipped.
 import { totalRevenue, budgetTotal, operatingRatio, affordabilityIndex } from './calc.js';
-import { validateStudy, summarizeFindings } from './validate.js';
+import { validateStudy, summarizeFindings, stepName } from './validate.js';
 import { stepCompletion } from './progress.js';
+import { STEP_GUIDES } from './guide.js';
+import {
+  MORE_JOKES, MORE_IDLE_QUIPS, MORE_WAKE_LINES, MORE_HOVER_LINES, MORE_DRAG_LINES, MORE_DIZZY_LINES,
+  MORE_EVENT_LINES, MORE_STEP_TIPS, GLOSSARY,
+} from './buddyLines.js';
+
+export {
+  MOVE_LINES, LANDING_LINES, SPLAT_LINES, ACTIVITY_LINES, FISH_CATCHES, PRO_TIPS, GLOSSARY,
+  SHOWREEL_OPENERS, SHOWREEL_CLOSERS,
+} from './buddyLines.js';
 
 export const BUDDY_SETTING = 'wrs-buddy';
 
@@ -31,17 +41,17 @@ export function greeting(now = new Date()) {
   const d = now.getDay();
   const lines = [];
   if (h < 5) lines.push("It's very late. Or very early. Either way, I brought coffee. Hi, I'm Drip.");
-  else if (h < 12) lines.push("Good morning! I'm Drip. I keep the water flowing and the rates honest.");
-  else if (h < 17) lines.push("Good afternoon! I'm Drip, your rate-study sidekick. Mostly side, some kick.");
+  else if (h < 12) lines.push("Good morning. I'm Drip. I point at things; you make the decisions.");
+  else if (h < 17) lines.push("Good afternoon. I'm Drip. Ask me anything about this screen — or click me if you need a minute.");
   else lines.push("Evening shift, huh? I'm Drip. Let's make this quick and correct.");
-  if (d === 1) lines.push('Happy Monday. I said it with a straight face. Mostly straight. I\'m a line.');
+  if (d === 1) lines.push('Happy Monday. I said it with a straight face. It\'s the only face I have.');
   if (d === 5) lines.push("It's Friday! Rates don't take weekends, but you should.");
   return lines;
 }
 
 export const BUDDY_TIPS = {
   dashboard: [
-    { say: 'Start a study up here. Blank, sample, or straight from the map — your call.', target: '.hero-actions' },
+    { say: 'Start a study up here. Blank, sample, or picked from the map — your call.', target: '.hero-actions' },
     { say: 'Never done one? Load the sample. It\'s a test drive, but nobody yells about the mileage.', target: '.hero-actions' },
     { say: 'These tiles are the 10,000-foot view. Orange means "a human should look at this." That\'s you.', target: '.kpi-row' },
     { say: 'Search by system, PWS ID or county. I tried searching by vibes once. Zero results.', target: '.dash-toolbar' },
@@ -102,25 +112,15 @@ export const BUDDY_TIPS = {
   ],
 };
 
+for (const [k, extra] of Object.entries(MORE_STEP_TIPS)) BUDDY_TIPS[k] = [...(BUDDY_TIPS[k] || []), ...extra];
+
 export const BUDDY_JOKES = [
-  'Why did the water bill go to therapy? Too many unresolved tiers.',
-  "I'm not short. I'm low-flow.",
-  'Hey! That tickles. I\'m mostly lines, but still.',
+  'Hey — that tickles. I\'m mostly lines, but still.',
   'Fun fact: I\'m 0% water. Huge disappointment to my parents.',
-  'A leaky faucet can waste 3,000 gallons a year. I tell everyone. I have no friends.',
-  'I put my savings in a reserve fund. It\'s called a puddle.',
-  'Coverage ratio jokes are funny. Ratio-nally speaking.',
-  'Boop.',
-  'What do you call a water system with perfect rates? Well-adjusted.',
-  'I tried to get a job as a pipe. They said I was too straight.',
-  'My favorite exercise? Running the numbers.',
-  'Knock knock. Who\'s there? Water. Water who? Water you doing clicking me, there\'s work to do!',
+  'A dripping faucet wastes about 3,000 gallons a year. I tell everyone. I have no friends.',
   'I asked the budget for a raise. It said "we\'ll see in Year 3."',
-  'I\'m great at tiered rates. Ask me anything above 5,000 gallons.',
-  'Why don\'t meters ever lie? They always give an accurate reading.',
-  'I\'d tell you a sewer joke, but it\'s a different rate class.',
-  'Hydrate or diedrate. That\'s my whole philosophy.',
-  'I was going to be a pie chart, but I didn\'t have the dough.',
+  'I\'d tell you a sewer joke, but that\'s a different rate class.',
+  ...MORE_JOKES,
 ];
 
 export const IDLE_QUIPS = [
@@ -132,33 +132,37 @@ export const IDLE_QUIPS = [
   'Did you hydrate today?',
   '…thinking about tiers…',
   'I could go for a nice cold glass of me. Wait.',
+  ...MORE_IDLE_QUIPS,
 ];
 
 export const WAKE_LINES = [
   'Huh?! I wasn\'t sleeping. I was resting my eyes. Both of them.',
   'Oh! You\'re back! I kept your seat warm. Metaphorically. I\'m cold-water rated.',
   '*snort* — Ahem. Where were we? Rates. Yes. Rates.',
+  ...MORE_WAKE_LINES,
 ];
 
 // Things the app tells him about (via lib/buddyBus.js) and how he takes them.
 export const BUDDY_EVENTS = {
   undo: { pose: 'rewind', mood: 'excited', lines: ['Rewind! ⏪ If only pipes had Ctrl+Z.', 'Undone. Time travel: still undefeated.', 'Whoosh — back in time. Nobody saw that.'] },
   redo: { pose: 'spin', mood: 'excited', lines: ['Redo! Fast-forward ⏩', 'And we\'re back. Déjà vu, but useful.'] },
-  export: { pose: 'throw', mood: 'excited', lines: ['Exported! I folded it into a paper airplane. Professionally.', 'Off it goes ✈️ Back-ups are self-care.', 'Saved to a file. Future you says thanks.'] },
-  apply: { pose: 'celebrate', mood: 'excited', lines: ['Rates applied! Every proposed rate moved together. Ctrl+Z if you blink.', 'Done — the math did the math. Check the scorecard!'] },
-  created: { pose: 'jump', mood: 'excited', lines: ['A fresh study! Smells like new spreadsheets.', 'New study, who dis? Let\'s start with Step 1.'] },
+  export: { pose: 'throw', mood: 'excited', lines: ['Exported! I folded it into a paper airplane. Professionally.', 'Off it goes ✈️ Keep a copy somewhere that isn\'t this browser.', 'Saved to a file. Future you says thanks.'] },
+  apply: { pose: 'celebrate', mood: 'excited', lines: ['Rates applied! Every proposed rate moved together. Ctrl+Z if you blink.', 'Applied. The scorecard has opinions now — take a look.'] },
+  created: { pose: 'jump', mood: 'excited', lines: ['A fresh study! Smells like new spreadsheets.', 'New study. Step 1 is the easy one: names and numbers.'] },
   duplicated: { pose: 'thumbs', mood: 'happy', lines: ['Twins! Change this copy as much as you like — the original is safe.', 'Copy made. Go wild; the original won\'t know.'] },
   rolled: { pose: 'celebrate', mood: 'excited', lines: ['Happy new rate year! 🎆 Last year\'s proposed rates are now current.', 'A whole year, just like that. Replace the opening balance with the audited figure in Step 5.'] },
   tourDone: { pose: 'celebrate', mood: 'excited', lines: ['Tour complete. There\'s no certificate, but I believe in you.', 'That\'s the tour. I\'ll be around if you need me.', 'Done. You now know more than most of the people at the meeting.'] },
   deleted: { pose: 'sad', mood: 'sad', lines: ['Goodbye, study. You were a good one. 😢', 'Gone. I\'ll hold a tiny moment of silence. …Okay, done.'] },
 };
 
+for (const [k, extra] of Object.entries(MORE_EVENT_LINES)) if (BUDDY_EVENTS[k]) BUDDY_EVENTS[k].lines.push(...extra);
+
 export const BYE_LINES = ['Okay, I\'ll be in the back. Press B if you need me!', 'Exit, stage right. 🚪', 'Taking five. Don\'t change the rates without me. (Kidding. Please do.)'];
 export const BACK_LINES = ['I\'m back! Did I miss anything? I missed everything.', 'Ta-da! 🚪 Miss me?', 'Back from the break room. The coffee there is… water.'];
 export const COFFEE_LINES = ['Coffee run! Back in a jiffy. ☕', 'BRB — refilling my mug. With water. Obviously.'];
-export const COFFEE_BACK_LINES = ['Got coffee. Well, hot water with ambition.', 'Back! Fully caffeinated, emotionally hydrated.'];
-export const TYPING_LINES = ['Ooh, numbers! 📝', 'Typing intensifies…', 'Taking notes. Mostly doodles.', 'Every digit counts. Literally.'];
-export const HOVER_LINES = ['Oh! Hi. 👋', '*blushes in stick figure*', 'You can click me, you know.'];
+export const COFFEE_BACK_LINES = ['Got coffee. Well, hot water with ambition.', 'Back. They were out of coffee, so: water. Again.'];
+export const TYPING_LINES = ['Ooh, numbers! 📝', 'Typing intensifies…', 'Taking notes. Mostly doodles.', 'Writing that down.'];
+export const HOVER_LINES = ['Oh! Hi. 👋', '*blushes in stick figure*', 'You can click me, you know.', ...MORE_HOVER_LINES];
 export const MEDITATE_LINES = ['Ommmm… balanced budgets… ommm…', 'Finding my inner operating ratio.'];
 export const WATCH_LINES = ['Is it five o\'clock yet?', 'Tick tock. Rates don\'t set themselves. Well — Step 4 kind of does.'];
 export const TOUR_DONE_LINE = 'Grand tour complete! You\'ve visited all 8 steps. I hereby name you an honorary hydrologist. 🏅';
@@ -173,14 +177,34 @@ export function seasonal(now = new Date()) {
   return { badge: null, line: null };
 }
 
-// Dry asides for getting around. Said now and then, never every time.
-export const LADDER_LINES = ['Ladder. Expensed under "equipment, misc."', 'OSHA would like a word.', 'Three points of contact. I have four lines. We\'re fine.'];
-export const BALLOON_LINES = ['Helium is not in the budget.', 'This is a normal way to travel.', 'Do not let go of the string. — me, to me'];
-export const UMBRELLA_LINES = ['Mary Poppins was a consultant too.', 'Controlled descent.', 'It\'s not raining. It\'s strategy.'];
+// Said when he flies somewhere (and for any way of travelling without lines of its own).
 export const FLY_LINES = ['Please don\'t tell facilities.', 'I don\'t know how I do this either.'];
 
-export const DRAG_LINES = ['Wheee!', 'Put me down! …Okay, this is fun.', 'I\'m flying! Sort of. Mostly dangling.', 'Easy! I\'m load-bearing.'];
-export const DIZZY_LINES = ['Okay okay, the room is spinning…', 'I see three of you. All very productive.', 'Stop! My lines are tangled!'];
+// Idle activities. Short and dry; he's busy, not performing.
+export const PHONE_CALLS = [
+  ['…mm-hm.', '…no, the rates are fine.', '…okay. Bye.'],
+  ["…it's Drip.", '…line four, under "other".', '…you too.'],
+  ['…can you hold?', '…', '…sorry. Go ahead.'],
+  ['…yes, a ladder.', '…no, I have my own.', '…okay.'],
+];
+export const WATER_LINES = ['Somebody has to.', "It's coming along.", 'Not too much. Not too little.'];
+export const SWEEP_LINES = ['Rounding errors. They get everywhere.', 'Tidying up.'];
+export const READ_LINES = ['Good report. A little long.', 'Rereading the executive summary.', 'Page six is where it gets interesting.'];
+export const LEAN_LINES = ['Just leaning.', 'Taking five. Four. Five.'];
+export const PERCH_LINES = ['Better view from up here.', "Don't mind me.", 'I can see the whole budget from here.'];
+export const WELCOME_BACK_LINES = ['Welcome back.', 'Oh — hi. Everything is where you left it.'];
+
+// His desk plant grows with the days since he first showed up: a sprout,
+// a few leaves, a bigger plant, then a flower after a couple of weeks.
+export function plantStage(sinceIso, now = new Date()) {
+  const since = new Date(sinceIso);
+  if (Number.isNaN(since.getTime())) return 1;
+  const days = Math.max(0, (now - since) / 86_400_000);
+  return days < 2 ? 1 : days < 6 ? 2 : days < 14 ? 3 : 4;
+}
+
+export const DRAG_LINES = ['Wheee!', 'Put me down! …Okay, this is fun.', 'I\'m flying! Sort of. Mostly dangling.', 'Easy! I\'m load-bearing.', ...MORE_DRAG_LINES];
+export const DIZZY_LINES = ['Okay okay, the room is spinning…', 'I see three of you. All very productive.', 'Stop! My lines are tangled!', ...MORE_DIZZY_LINES];
 
 // Small, comparable facts about a study. Drip compares successive snapshots to
 // react when the numbers move.
@@ -251,6 +275,51 @@ export function buddyAlerts(study) {
   return out;
 }
 
+// Data-check findings that belong to one step, phrased for arriving on it.
+export function stepFindings(study, step, { limit = 2 } = {}) {
+  if (!study || typeof step !== 'number') return [];
+  return validateStudy(study)
+    .filter(f => f.step === step && f.severity !== 'info')
+    .slice(0, limit)
+    .map(f => ({
+      say: `On this step: ${f.title}.${f.detail ? ' ' + f.detail : ''}`,
+      mood: f.severity === 'error' ? 'worried' : undefined,
+    }));
+}
+
+// "What's next?" — the single most useful thing to do now: fix the first
+// blocking finding, else fill the first empty step, else review a warning,
+// else export. `step` (when set) is where to go.
+export function whatsNext(study) {
+  if (!study) return { say: 'Open a study from the list, or start a new one up here.', target: '.hero-actions' };
+  const findings = validateStudy(study);
+  const err = findings.find(f => f.severity === 'error');
+  if (err) return { say: `Next: fix "${err.title}". It's on ${stepName(err.step)}.`, step: err.step };
+  const done = stepCompletion(study);
+  // Data steps first; the AI step is optional and the report comes last.
+  const gap = done.findIndex((d, i) => !d && i < 6);
+  if (gap >= 0) {
+    const g = STEP_GUIDES[gap];
+    return { say: `Next: ${stepName(gap)}.${g?.purpose ? ' ' + g.purpose : ''}`, step: gap };
+  }
+  const warn = findings.find(f => f.severity === 'warn');
+  if (warn) return { say: `The numbers are all in. One thing worth a look first: "${warn.title}" on ${stepName(warn.step)}.`, step: warn.step };
+  return { say: 'The numbers are all in and the data check is clear. Next: export the board report from Step 8.', step: 7 };
+}
+
+// "Explain this step" in a sentence or two.
+export function explainStep(step) {
+  const g = STEP_GUIDES[step];
+  if (!g) return 'This is the dashboard: every study, the map, and a way to start a new one.';
+  return `${g.title}: ${g.purpose}${g.tips?.[0] ? ' Tip: ' + g.tips[0] : ''}`;
+}
+
+// A one-line definition for a field, matched on its label.
+export function glossaryFor(label) {
+  if (!label) return null;
+  return GLOSSARY.find(g => g.match.test(label))?.say || null;
+}
+
 // Fisher–Yates on a copy, with an injectable random source for tests.
 export function shuffled(arr, rnd = Math.random) {
   const a = arr.slice();
@@ -264,7 +333,7 @@ export function shuffled(arr, rnd = Math.random) {
 // What Drip says in a context: study alerts first, then the screen's lead tip,
 // then the rest shuffled so repeat visits don't feel scripted.
 export function buddyOpening(context, study, { now = new Date(), rnd = Math.random } = {}) {
-  const alerts = context === 'dashboard' ? [] : buddyAlerts(study);
+  const alerts = context === 'dashboard' ? [] : [...buddyAlerts(study), ...stepFindings(study, context)];
   const [lead, ...rest] = BUDDY_TIPS[context] || [];
   const season = seasonal(now).line;
   const hello = context === 'dashboard'
