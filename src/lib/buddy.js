@@ -112,7 +112,6 @@ export const BUDDY_JOKES = [
   'Coverage ratio jokes are funny. Ratio-nally speaking.',
   'Boop.',
   'What do you call a water system with perfect rates? Well-adjusted.',
-  'I tried to get a job as a pipe. They said I was too straight.',
   'My favorite exercise? Running the numbers.',
   'Knock knock. Who\'s there? Water. Water who? Water you doing clicking me, there\'s work to do!',
   'I asked the budget for a raise. It said "we\'ll see in Year 3."',
@@ -178,6 +177,29 @@ export const LADDER_LINES = ['Ladder. Expensed under "equipment, misc."', 'OSHA 
 export const BALLOON_LINES = ['Helium is not in the budget.', 'This is a normal way to travel.', 'Do not let go of the string. — me, to me'];
 export const UMBRELLA_LINES = ['Mary Poppins was a consultant too.', 'Controlled descent.', 'It\'s not raining. It\'s strategy.'];
 export const FLY_LINES = ['Please don\'t tell facilities.', 'I don\'t know how I do this either.'];
+
+// Idle activities. Short and dry; he's busy, not performing.
+export const PHONE_CALLS = [
+  ['…mm-hm.', '…no, the rates are fine.', '…okay. Bye.'],
+  ["…it's Drip.", '…line four, under "other".', '…you too.'],
+  ['…can you hold?', '…', '…sorry. Go ahead.'],
+  ['…yes, a ladder.', '…no, I have my own.', '…okay.'],
+];
+export const WATER_LINES = ['Somebody has to.', "It's coming along.", 'Not too much. Not too little.'];
+export const SWEEP_LINES = ['Rounding errors. They get everywhere.', 'Tidying up.'];
+export const READ_LINES = ['Good report. A little long.', 'Rereading the executive summary.', 'Page six is where it gets interesting.'];
+export const LEAN_LINES = ['Just leaning.', 'Taking five. Four. Five.'];
+export const PERCH_LINES = ['Better view from up here.', "Don't mind me.", 'I can see the whole budget from here.'];
+export const WELCOME_BACK_LINES = ['Welcome back.', 'Oh — hi. Everything is where you left it.'];
+
+// His desk plant grows with the days since he first showed up: a sprout,
+// a few leaves, a bigger plant, then a flower after a couple of weeks.
+export function plantStage(sinceIso, now = new Date()) {
+  const since = new Date(sinceIso);
+  if (Number.isNaN(since.getTime())) return 1;
+  const days = Math.max(0, (now - since) / 86_400_000);
+  return days < 2 ? 1 : days < 6 ? 2 : days < 14 ? 3 : 4;
+}
 
 export const DRAG_LINES = ['Wheee!', 'Put me down! …Okay, this is fun.', 'I\'m flying! Sort of. Mostly dangling.', 'Easy! I\'m load-bearing.'];
 export const DIZZY_LINES = ['Okay okay, the room is spinning…', 'I see three of you. All very productive.', 'Stop! My lines are tangled!'];

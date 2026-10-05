@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BUDDY_TIPS, BUDDY_PROPS, BUDDY_JOKES, buddyOpening, buddyAlerts, buddyMetrics,
-  buddyReaction, greeting, shuffled, pick, BUDDY_EVENTS, seasonal,
+  buddyReaction, greeting, shuffled, pick, BUDDY_EVENTS, seasonal, plantStage, PHONE_CALLS,
 } from './buddy.js';
 import { buddyEvent, onBuddyEvent } from './buddyBus.js';
 import { makeSampleStudy } from './sample-study.js';
@@ -96,4 +96,19 @@ test('the event bus delivers to subscribers and survives a throwing one', () => 
   off1(); off2();
   buddyEvent('undo');
   assert.deepEqual(got, [{ type: 'export', id: 'x' }]);
+});
+
+test('his plant grows with the days, and a bad date is a sprout', () => {
+  const start = new Date(2026, 9, 1, 9);
+  const at = (d) => new Date(start.getTime() + d * 86_400_000);
+  assert.equal(plantStage(start.toISOString(), at(0)), 1);
+  assert.equal(plantStage(start.toISOString(), at(3)), 2);
+  assert.equal(plantStage(start.toISOString(), at(10)), 3);
+  assert.equal(plantStage(start.toISOString(), at(30)), 4);
+  assert.equal(plantStage('not a date', at(30)), 1);
+  for (const call of PHONE_CALLS) assert.ok(call.length >= 2);
+});
+
+test('no joke leans on innuendo', () => {
+  assert.ok(!BUDDY_JOKES.some(j => /straight/i.test(j)));
 });
