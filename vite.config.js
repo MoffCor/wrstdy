@@ -38,8 +38,27 @@ const fileUrlSafeScript = {
   },
 };
 
+// jsPDF lazily imports html2canvas, canvg and DOMPurify for its .html() and
+// addSvgAsImage() features, which this app never calls. A chunked build only
+// fetches them on demand, but the single-file build inlines every dynamic
+// import, so they added ~375 KB to the file for nothing. Replace them there
+// with a stub that throws if anything ever does call them.
+const UNUSED_PDF_EXTRAS = ['html2canvas', 'canvg', 'dompurify'];
+const stubUnusedPdfExtras = {
+  name: 'stub-unused-pdf-extras',
+  enforce: 'pre',
+  resolveId(id) {
+    return UNUSED_PDF_EXTRAS.includes(id) ? `\0wrs-unused:${id}` : null;
+  },
+  load(id) {
+    if (!id.startsWith('\0wrs-unused:')) return null;
+    const name = id.slice('\0wrs-unused:'.length);
+    return `export default function unused() { throw new Error(${JSON.stringify(name + ' is not included in the single-file build')}); }`;
+  },
+};
+
 export default defineConfig({
-  plugins: [react(), ...(single ? [viteSingleFile(), fileUrlSafeScript] : [])],
+  plugins: [react(), ...(single ? [stubUnusedPdfExtras, viteSingleFile(), fileUrlSafeScript] : [])],
   server: { port: 5173, host: true },
   build: single
     ? {

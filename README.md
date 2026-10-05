@@ -69,7 +69,7 @@ npm run build && npm run build:pcf && npm run test:browser
 npm run build
 
 # Single self-contained HTML → dist-single/index.html
-# (~600 KB, all JS/CSS/images inlined; works via file://, email attachment,
+# (~2 MB, all JS/CSS/images inlined; works via file://, email attachment,
 #  USB stick, or dropped into a SharePoint folder)
 npm run build:single
 
