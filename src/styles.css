@@ -393,7 +393,8 @@
 .wrs-app.narrow .sb-backdrop { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, .45); z-index: 199; }
 .wrs-app.narrow .sb-backdrop.open { display: block; }
 .wrs-app.narrow .ws-bar, .wrs-app.narrow .stepper { padding-left: 12px; padding-right: 12px; }
-.wrs-app.narrow .ws-sc { padding: 14px 12px 80px; }
+.wrs-app.narrow .ws-sc { padding: 14px 12px 0; }
+.wrs-app.narrow .ws-sc::after { height: 80px; }
 .wrs-app.narrow .ws-nv { padding: 8px 12px; }
 .wrs-app.narrow .dash-wrap { padding: 16px 14px 40px; }
 .wrs-app.narrow .g2, .wrs-app.narrow .g3, .wrs-app.narrow .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -412,6 +413,7 @@
   .wrs-app .row { overflow: visible; display: block; }
   .wrs-app .main { overflow: visible; display: block; }
   .wrs-app .ws-sc { overflow: visible; padding: 0; }
+  .wrs-app .ws-sc::after { display: none; }
   .wrs-app .card { break-inside: avoid; box-shadow: none; border: 1px solid #ddd; }
   .wrs-app .pg-break { page-break-before: always; }
   /* Keep the teal header/total bands legible on paper */
@@ -531,7 +533,11 @@
 .wrs-app .ws-progress-track { height: 6px; border-radius: 99px; background: #e5ecec; }
 .wrs-app .ws-progress-fill { background: var(--grad-lime); border-radius: 99px; transition: width .35s var(--ease); }
 
-.wrs-app .ws-sc { padding: 22px 24px 40px; scroll-behavior: smooth; }
+.wrs-app .ws-sc { padding: 22px 24px 0; scroll-behavior: smooth; }
+/* The space at the end of a step is a spacer rather than bottom padding:
+   padding is a minimum height the scroll area can't shrink below, and at
+   large text sizes in a short window it pushed the step bar off-screen. */
+.wrs-app .ws-sc::after { content: ''; display: block; height: 40px; }
 .wrs-app .ws-inner { max-width: 1240px; margin: 0 auto; animation: wrs-rise .28s var(--ease); }
 @keyframes wrs-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .wrs-app .ws-nv { background: rgba(255, 255, 255, .95); }
@@ -704,10 +710,13 @@
    Limb pivots use `transform-box: view-box` so every origin is in the SVG's own
    0–64 × 0–104 coordinates (shoulder 32,42 · hip 32,64 · neck 32,35 · feet
    32,98), independent of how big the figure is drawn. */
-.wrs-app.buddy-on .ws-sc { padding-bottom: 150px; }
-.wrs-app.buddy-on .dash-wrap { padding-bottom: 150px; }
+/* Extra room at the end of the page so Drip never covers the last thing on
+   it (a spacer, for the reason given at .ws-sc). */
+.wrs-app.buddy-on .ws-sc::after { height: 136px; }
+.wrs-app.buddy-on.narrow .ws-sc::after { height: 176px; }
+.wrs-app.buddy-on .dash-wrap::after { content: ''; display: block; height: 100px; }
 .wrs-app .buddy { position: absolute; bottom: 10px; z-index: 900; width: 64px; transition: left var(--walk-ms, 1s) linear, bottom var(--walk-ms, 1s) cubic-bezier(.3, .1, .3, 1); }
-.wrs-app .buddy.raised { bottom: 58px; }
+.wrs-app .buddy.raised { bottom: var(--floor, 58px); }
 .wrs-app .buddy.home { right: 14px; }
 .wrs-app .buddy.dragging { transition: none; }
 .wrs-app .buddy-fig { display: block; padding: 0; border: none; background: transparent; cursor: grab; border-radius: 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -922,7 +931,7 @@
 @keyframes wrs-b-exit { from { transform: none; opacity: 1; } 60% { opacity: 1; } to { transform: translateX(30px) scale(.8); opacity: 0; } }
 
 .wrs-app .buddy-door { position: absolute; right: 4px; bottom: 8px; width: 50px; height: 94px; z-index: 899; pointer-events: none; opacity: 0; transform: scaleY(.6); transform-origin: bottom right; transition: opacity .25s, transform .3s var(--ease); }
-.wrs-app .buddy-door.raised { bottom: 56px; }
+.wrs-app .buddy-door.raised { bottom: calc(var(--floor, 58px) - 2px); }
 .wrs-app .buddy-door.door-shut, .wrs-app .buddy-door.door-open { opacity: 1; transform: none; }
 .wrs-app .door-frame { position: absolute; inset: 0; border: 4px solid #1e3d3b; border-bottom: none; border-radius: 8px 8px 0 0; background: #0b1716; perspective: 240px; box-shadow: 0 6px 16px rgba(16, 48, 46, .25); }
 .wrs-app .door-frame::after { content: ''; position: absolute; left: -10px; right: -10px; bottom: -3px; height: 3px; border-radius: 2px; background: rgba(16, 48, 46, .25); }
@@ -1265,7 +1274,7 @@
 .wrs-app .buddy.pose-water .b-water circle:nth-child(3) { animation-delay: .9s; }
 @keyframes wrs-b-pour { 0% { opacity: 0; transform: translateY(-6px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(14px); } }
 .wrs-app .buddy-plant { position: absolute; right: 84px; bottom: 9px; width: 30px; height: 44px; z-index: 897; pointer-events: none; transform-origin: 50% 100%; }
-.wrs-app .buddy-plant.raised { bottom: 57px; }
+.wrs-app .buddy-plant.raised { bottom: calc(var(--floor, 58px) - 1px); }
 .wrs-app .buddy-plant.perk { animation: wrs-plant-perk 1.4s var(--ease) .4s; }
 @keyframes wrs-plant-perk { 0%, 100% { transform: none; } 30% { transform: scale(.94, 1.08); } 60% { transform: scale(1.03, .97) rotate(2deg); } }
 .wrs-app .buddy-plant .pl-pot { fill: #c2410c; stroke: #7c2d12; stroke-width: .8; }

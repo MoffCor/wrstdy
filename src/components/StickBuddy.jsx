@@ -12,6 +12,7 @@ import {
 import { onBuddyEvent, buddyEvent } from '../lib/buddyBus.js';
 import { DripGear } from './DripGear.jsx';
 import { getSetting, setSetting } from '../platform/host.js';
+import { useTextZoom } from './TextSizeMenu.jsx';
 
 const W = 64;            // rendered figure width (px)
 const PLANT_SETTING = 'wrs-buddy-plant';
@@ -45,6 +46,7 @@ const RESTING = new Set(['idle', 'juggle']);
 // Poses that keep him sitting on a card's top edge.
 const PERCHED = new Set(['perch', 'fish', 'reel']);
 
+const ZOOM_WORKS = typeof CSS !== 'undefined' && !!CSS.supports?.('zoom', '2');
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 // Reveal speech a few characters at a time, like he's actually talking.
@@ -444,6 +446,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   }, [later]);
 
   const appEl = () => rootRef.current?.closest('.wrs-app');
+  const zoom = useTextZoom();
   // The app is CSS-zoomed by the text-size setting, so screen pixels from
   // getBoundingClientRect are `scale` times the CSS pixels `left` is set in.
   const metrics = () => {
@@ -454,9 +457,42 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     const myW = rootRef.current?.offsetWidth || W;
     const myH = rootRef.current?.offsetHeight || 104;
     const height = rect.height / scale;
-    return { rect, scale, width: rect.width / scale, height, max: rect.width / scale - myW - MARGIN, maxY: height - myH - MARGIN };
+    // Pointer coordinates are always on-screen pixels. Element rects are too
+    // on current engines, but older zoom (Safari, older Chrome) reports them
+    // in the app's own unzoomed pixels — so pointer maths uses the zoom itself.
+    const pointer = ZOOM_WORKS ? zoom : 1;
+    return { rect, scale, pointer, width: rect.width / scale, height, max: rect.width / scale - myW - MARGIN, maxY: height - myH - MARGIN };
   };
   const findTarget = (sel) => (sel ? appEl()?.querySelector(sel) : null);
+
+  // In a study he stands just above the step navigation bar. Measured rather
+  // than fixed: the bar's height changes with the text size and the width of
+  // the window.
+  const [floor, setFloor] = useState(58);
+  const floorRef = useRef(58);
+  const inStudy = context !== 'dashboard';
+  useEffect(() => {
+    const app = appEl();
+    if (!app || !inStudy) return undefined;
+    const measure = () => {
+      const m = metrics();
+      const nav = app.querySelector('.ws-nv');
+      let f = 10;
+      if (m && nav) {
+        const r = nav.getBoundingClientRect();
+        if (r.height > 0 && r.top < m.rect.bottom) f = Math.round((m.rect.bottom - r.top) / m.scale) + 10;
+      }
+      if (f !== floorRef.current) { floorRef.current = f; setFloor(f); }
+    };
+    measure();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    ro?.observe(app);
+    const nav = app.querySelector('.ws-nv');
+    if (nav) ro?.observe(nav);
+    window.addEventListener('resize', measure);
+    return () => { ro?.disconnect(); window.removeEventListener('resize', measure); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inStudy, zoom]);
   const tip = tips[idx % Math.max(1, tips.length)];
   const target = extra ? extra.target : tip?.target;
 
@@ -489,7 +525,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     const cur = (r.left - m.rect.left) / m.scale;
     const curY = (m.rect.bottom - r.bottom) / m.scale;
     const myH = me.offsetHeight || 104;
-    const floor = me.classList.contains('raised') ? 58 : 10;
+    const floor = me.classList.contains('raised') ? floorRef.current : 10;
     const clampX = (v) => Math.max(MARGIN, Math.min(m.max, v));
     const dest = nextX == null ? m.max : clampX(nextX);
     const destY = nextY == null ? floor : Math.max(MARGIN, Math.min(m.maxY, nextY));
@@ -1069,9 +1105,11 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
         const el = rootRef.current;
         const fig = el?.querySelector('.buddy-fig');
         if (!fig) return;
+        const m = metrics();
+        const toScreen = m ? m.pointer / m.scale : 1;   // rect pixels → screen pixels
         const r = fig.getBoundingClientRect();
-        const dx = e.clientX - (r.left + r.width / 2);
-        const dy = e.clientY - (r.top + r.height * 0.23);
+        const dx = e.clientX - (r.left + r.width / 2) * toScreen;
+        const dy = e.clientY - (r.top + r.height * 0.23) * toScreen;
         const len = Math.hypot(dx, dy) || 1;
         const k = Math.min(1, len / 160);
         const flip = el.classList.contains('face-left') ? -1 : 1;
@@ -1180,6 +1218,13 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     return true;
   };
 
+  // Jokes come out of a shuffled bag, so none repeats until he's told them all.
+  const jokeBag = useRef([]);
+  const nextJoke = () => {
+    if (!jokeBag.current.length) jokeBag.current = shuffled(BUDDY_JOKES);
+    return jokeBag.current.pop();
+  };
+
   // Bubble shortcuts.
   const askNext = () => {
     const n = whatsNext(study);
@@ -1199,7 +1244,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     const trick = pick(TRICKS);
     act(trick, { mood: 'excited' });
     if (trick === 'dance') burst();
-    setExtra({ say: pick(BUDDY_JOKES), kind: 'joke' });
+    setExtra({ say: nextJoke(), kind: 'joke' });
   };
   const takeMeThere = () => {
     const step = extra?.step;
@@ -1270,7 +1315,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     const trick = pick(TRICKS);
     act(trick, { mood: 'excited' });
     if (trick === 'dance') burst();
-    setExtra({ say: pick(BUDDY_JOKES), kind: 'joke' });
+    setExtra({ say: nextJoke(), kind: 'joke' });
   };
 
   // Drag him along the bottom edge.
@@ -1281,7 +1326,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     if (!m || !me) return;
     const r = me.getBoundingClientRect();
     drag.current = {
-      sx: e.clientX, sy: e.clientY, scale: m.scale, moved: false, lastX: e.clientX,
+      sx: e.clientX, sy: e.clientY, scale: m.pointer, moved: false, lastX: e.clientX,
       left: (r.left - m.rect.left) / m.scale, max: m.max,
       bottom: (m.rect.bottom - r.bottom) / m.scale, maxY: m.maxY,
     };
@@ -1369,11 +1414,12 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     bounce: 'excited', tuck: 'excited', cartwheel: 'excited', tiptoe: 'neutral', skate: 'happy', stretch: 'calm',
   }[pose] || moodOverride || tip?.mood || 'happy';
 
-  const raised = context === 'dashboard' ? '' : ' raised';
+  const raised = inStudy ? ' raised' : '';
+  const floorVar = { '--floor': `${floor}px` };
   return (
     <>
     {plant > 0 && (
-      <div className={`buddy-plant no-print${raised}${plantPerk ? ' perk' : ''}`} key={plantPerk} aria-hidden="true">
+      <div className={`buddy-plant no-print${raised}${plantPerk ? ' perk' : ''}`} key={plantPerk} style={floorVar} aria-hidden="true">
         <Plant stage={plant} />
       </div>
     )}
@@ -1384,7 +1430,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
       </svg>
     )}
     <DripGear gear={gear} />
-    <div className={`buddy-door no-print door-${door}${raised}`} aria-hidden="true">
+    <div className={`buddy-door no-print door-${door}${raised}`} style={floorVar} aria-hidden="true">
       <div className="door-frame">
         <div className="door-inside" />
         <div className="door-panel"><span className="door-window">💧</span><span className="door-knob" /></div>
@@ -1393,7 +1439,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
     <div
       ref={rootRef}
       className={`buddy no-print pose-${pose} face-${face} expr-${expr} prop-${prop}${PERCHED.has(pose) ? ' perched' : ''}${catchItem ? ` catch-${catchItem}` : ''}${x == null ? ' home' : ''}${raised}${dragging ? ' dragging' : ''}${away ? ' away' : ''}`}
-      style={x == null && y == null ? undefined : { ...(x == null ? {} : { left: x }), ...(y == null ? {} : { bottom: y }) }}
+      style={{ ...floorVar, ...(x == null ? {} : { left: x }), ...(y == null ? {} : { bottom: y }) }}
     >
       {bubble && text && (
         <div

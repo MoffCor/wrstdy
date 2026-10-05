@@ -260,6 +260,22 @@ console.log('\nStandalone build');
   await page.close();
 }
 
+// Largest text size in a short window: the step bar must stay on screen, and
+// Drip must stand just above it rather than at a fixed height.
+{
+  const page = await browser.newPage({ viewport: { width: 1024, height: 640 } });
+  await page.addInitScript(() => { localStorage.setItem('wrs-text-zoom', '1.6'); localStorage.setItem('wrs-tour-seen-v1', '1'); });
+  await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: /Load Sample Study/i }).click();
+  await page.waitForSelector('.ws-nv', { timeout: 10000 });
+  await page.waitForTimeout(2500);
+  const nav = await page.locator('.ws-nv').boundingBox();
+  check('step bar stays on screen at the largest text size', nav.y + nav.height <= 641, true);
+  const drip = await page.locator('.buddy.home .buddy-fig').boundingBox().catch(() => null);
+  check('Drip stands just above the step bar', !!drip && drip.y + drip.height <= nav.y && nav.y - (drip.y + drip.height) < 40, true);
+  await page.close();
+}
+
 // ── Power Apps code component ───────────────────────────────────────────────
 console.log('\nPower Apps code component');
 {

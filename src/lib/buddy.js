@@ -41,8 +41,8 @@ export function greeting(now = new Date()) {
   const d = now.getDay();
   const lines = [];
   if (h < 5) lines.push("It's very late. Or very early. Either way, I brought coffee. Hi, I'm Drip.");
-  else if (h < 12) lines.push("Good morning! I'm Drip. I keep the water flowing and the rates honest.");
-  else if (h < 17) lines.push("Good afternoon! I'm Drip, your rate-study sidekick. Mostly side, some kick.");
+  else if (h < 12) lines.push("Good morning. I'm Drip. I point at things; you make the decisions.");
+  else if (h < 17) lines.push("Good afternoon. I'm Drip. Ask me anything about this screen — or click me if you need a minute.");
   else lines.push("Evening shift, huh? I'm Drip. Let's make this quick and correct.");
   if (d === 1) lines.push('Happy Monday. I said it with a straight face. It\'s the only face I have.');
   if (d === 5) lines.push("It's Friday! Rates don't take weekends, but you should.");
@@ -115,23 +115,11 @@ export const BUDDY_TIPS = {
 for (const [k, extra] of Object.entries(MORE_STEP_TIPS)) BUDDY_TIPS[k] = [...(BUDDY_TIPS[k] || []), ...extra];
 
 export const BUDDY_JOKES = [
-  'Why did the water bill go to therapy? Too many unresolved tiers.',
-  "I'm not short. I'm low-flow.",
-  'Hey! That tickles. I\'m mostly lines, but still.',
+  'Hey — that tickles. I\'m mostly lines, but still.',
   'Fun fact: I\'m 0% water. Huge disappointment to my parents.',
-  'A leaky faucet can waste 3,000 gallons a year. I tell everyone. I have no friends.',
-  'I put my savings in a reserve fund. It\'s called a puddle.',
-  'Coverage ratio jokes are funny. Ratio-nally speaking.',
-  'Boop.',
-  'What do you call a water system with perfect rates? Well-adjusted.',
-  'My favorite exercise? Running the numbers.',
-  'Knock knock. Who\'s there? Water. Water who? Water you doing clicking me, there\'s work to do!',
+  'A dripping faucet wastes about 3,000 gallons a year. I tell everyone. I have no friends.',
   'I asked the budget for a raise. It said "we\'ll see in Year 3."',
-  'I\'m great at tiered rates. Ask me anything above 5,000 gallons.',
-  'Why don\'t meters ever lie? They always give an accurate reading.',
-  'I\'d tell you a sewer joke, but it\'s a different rate class.',
-  'Hydrate or diedrate. That\'s my whole philosophy.',
-  'I was going to be a pie chart, but I didn\'t have the dough.',
+  'I\'d tell you a sewer joke, but that\'s a different rate class.',
   ...MORE_JOKES,
 ];
 
@@ -158,9 +146,9 @@ export const WAKE_LINES = [
 export const BUDDY_EVENTS = {
   undo: { pose: 'rewind', mood: 'excited', lines: ['Rewind! ⏪ If only pipes had Ctrl+Z.', 'Undone. Time travel: still undefeated.', 'Whoosh — back in time. Nobody saw that.'] },
   redo: { pose: 'spin', mood: 'excited', lines: ['Redo! Fast-forward ⏩', 'And we\'re back. Déjà vu, but useful.'] },
-  export: { pose: 'throw', mood: 'excited', lines: ['Exported! I folded it into a paper airplane. Professionally.', 'Off it goes ✈️ Back-ups are self-care.', 'Saved to a file. Future you says thanks.'] },
-  apply: { pose: 'celebrate', mood: 'excited', lines: ['Rates applied! Every proposed rate moved together. Ctrl+Z if you blink.', 'Done — the math did the math. Check the scorecard!'] },
-  created: { pose: 'jump', mood: 'excited', lines: ['A fresh study! Smells like new spreadsheets.', 'New study, who dis? Let\'s start with Step 1.'] },
+  export: { pose: 'throw', mood: 'excited', lines: ['Exported! I folded it into a paper airplane. Professionally.', 'Off it goes ✈️ Keep a copy somewhere that isn\'t this browser.', 'Saved to a file. Future you says thanks.'] },
+  apply: { pose: 'celebrate', mood: 'excited', lines: ['Rates applied! Every proposed rate moved together. Ctrl+Z if you blink.', 'Applied. The scorecard has opinions now — take a look.'] },
+  created: { pose: 'jump', mood: 'excited', lines: ['A fresh study! Smells like new spreadsheets.', 'New study. Step 1 is the easy one: names and numbers.'] },
   duplicated: { pose: 'thumbs', mood: 'happy', lines: ['Twins! Change this copy as much as you like — the original is safe.', 'Copy made. Go wild; the original won\'t know.'] },
   rolled: { pose: 'celebrate', mood: 'excited', lines: ['Happy new rate year! 🎆 Last year\'s proposed rates are now current.', 'A whole year, just like that. Replace the opening balance with the audited figure in Step 5.'] },
   tourDone: { pose: 'celebrate', mood: 'excited', lines: ['Tour complete. There\'s no certificate, but I believe in you.', 'That\'s the tour. I\'ll be around if you need me.', 'Done. You now know more than most of the people at the meeting.'] },
@@ -172,8 +160,8 @@ for (const [k, extra] of Object.entries(MORE_EVENT_LINES)) if (BUDDY_EVENTS[k]) 
 export const BYE_LINES = ['Okay, I\'ll be in the back. Press B if you need me!', 'Exit, stage right. 🚪', 'Taking five. Don\'t change the rates without me. (Kidding. Please do.)'];
 export const BACK_LINES = ['I\'m back! Did I miss anything? I missed everything.', 'Ta-da! 🚪 Miss me?', 'Back from the break room. The coffee there is… water.'];
 export const COFFEE_LINES = ['Coffee run! Back in a jiffy. ☕', 'BRB — refilling my mug. With water. Obviously.'];
-export const COFFEE_BACK_LINES = ['Got coffee. Well, hot water with ambition.', 'Back! Fully caffeinated, emotionally hydrated.'];
-export const TYPING_LINES = ['Ooh, numbers! 📝', 'Typing intensifies…', 'Taking notes. Mostly doodles.', 'Every digit counts. Literally.'];
+export const COFFEE_BACK_LINES = ['Got coffee. Well, hot water with ambition.', 'Back. They were out of coffee, so: water. Again.'];
+export const TYPING_LINES = ['Ooh, numbers! 📝', 'Typing intensifies…', 'Taking notes. Mostly doodles.', 'Writing that down.'];
 export const HOVER_LINES = ['Oh! Hi. 👋', '*blushes in stick figure*', 'You can click me, you know.', ...MORE_HOVER_LINES];
 export const MEDITATE_LINES = ['Ommmm… balanced budgets… ommm…', 'Finding my inner operating ratio.'];
 export const WATCH_LINES = ['Is it five o\'clock yet?', 'Tick tock. Rates don\'t set themselves. Well — Step 4 kind of does.'];
