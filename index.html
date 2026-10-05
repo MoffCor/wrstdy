@@ -16,9 +16,17 @@
            a blank page. Inline styles: this must work even if nothing else
            on the page does. -->
       <div id="wrs-boot" style="margin:auto;max-width:560px;padding:32px 24px;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:#1e3d3b;text-align:center">
-        <div style="font-size:15px;font-weight:600">Loading the Water Rate Study Tool…</div>
+        <div id="wrs-loading" style="font-size:15px;font-weight:600">Loading the Water Rate Study Tool…</div>
+        <!-- Shown when scripts can't run at all. That is exactly what an iPad
+             or iPhone does with a saved HTML file (Files / Quick Look preview,
+             mail attachment preview): it displays the page but never runs it. -->
         <noscript>
-          <p style="font-size:14px;line-height:1.6;color:#334155">This tool needs JavaScript. Turn JavaScript on for this page, or open the file in Chrome or Edge.</p>
+          <style>#wrs-loading { display: none; }</style>
+          <div style="text-align:left;font-size:14px;line-height:1.6;color:#334155;margin-top:14px">
+            <p style="margin:0 0 8px"><strong>This is a preview, so the tool can’t run here.</strong></p>
+            <p style="margin:0 0 8px">iPads and iPhones only show a preview of a saved HTML file; they never run it, whichever browser you use. Email and chat previews behave the same way.</p>
+            <p style="margin:0">Open the file on a Windows PC or Mac: save it, then right-click → Open with → Chrome or Edge. To use it on an iPad, open it from a web link instead.</p>
+          </div>
         </noscript>
       </div>
     </div>
