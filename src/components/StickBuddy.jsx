@@ -133,10 +133,8 @@ function Prop({ kind }) {
         <path d="M46 54 v11" className="b-p-line thin" />
         <path className="b-page" d="M46 54 l8 -1.6 v10 l-8 1.6z" />
       </g>);
-    case 'juggle': case 'wand': return null; // drawn by the figure itself
-    default: return (
-      <path className="b-prop b-drop" key="drop" d="M47 59 c0 0 -4 5 -4 7.5 a4 4 0 0 0 8 0 c0 -2.5 -4 -7.5 -4 -7.5z" />
-    );
+    // Nothing in hand (the juggling drops and the wand are part of the figure).
+    default: return null;
   }
 }
 
@@ -214,7 +212,7 @@ function Plant({ stage }) {
  * classes on an ancestor (`.buddy.pose-wave`, `.expr-…`), so the same figure
  * animates in the corner and inside the guided tour.
  */
-export function DripFigure({ prop = 'drop', expr = 'happy', badge = null }) {
+export function DripFigure({ prop = 'none', expr = 'happy', badge = null }) {
   return (
     <svg viewBox="0 0 64 104" width={W} height={104} aria-hidden="true">
       <ellipse className="b-shadow" cx="32" cy="100" rx="16" ry="3" />
@@ -248,7 +246,7 @@ export function DripFigure({ prop = 'drop', expr = 'happy', badge = null }) {
             <g className="b-fore b-fore-r">
               <line x1="39" y1="51" x2="46" y2="60" />
               <Prop kind={prop} />
-              <g className="b-yoyo"><line x1="46" y1="60" x2="46" y2="84" className="yo-string" /><circle cx="46" cy="86" r="3" className="yo-drop" /></g>
+              <g className="b-yoyo"><line x1="46" y1="60" x2="46" y2="83" className="yo-string" /><g className="yo-toy"><circle cx="46" cy="86.5" r="3.6" className="yo-body" /><path d="M42.4 86.5 h7.2" className="yo-groove" /></g></g>
               <g className="b-rod">
                 <line x1="46" y1="60" x2="72" y2="30" className="rod-pole" />
                 <line x1="72" y1="30" x2="72" y2="128" className="rod-line" />
@@ -402,7 +400,7 @@ export function StickBuddy({ context, study, onHide, leaving = false, onGone }) 
   const bubbleRef = useRef(true);
   bubbleRef.current = bubble;
 
-  const prop = propOverride || BUDDY_PROPS[context] || 'drop';
+  const prop = propOverride || BUDDY_PROPS[context] || 'none';
   const rest = prop === 'juggle' ? 'juggle' : 'idle';
   const setPose = useCallback((p) => {
     setPoseState(prev => { const next = typeof p === 'function' ? p(prev) : p; poseRef.current = next; return next; });

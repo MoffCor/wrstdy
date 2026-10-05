@@ -741,7 +741,6 @@
 
 /* Props */
 .wrs-app .buddy .b-prop { animation: wrs-b-pop .35s var(--ease); transform-origin: 46px 60px; }
-.wrs-app .buddy .b-drop { fill: #38bdf8; stroke: #0369a1; stroke-width: 1; }
 .wrs-app .buddy .b-p-white { fill: #fff; stroke: #1e3d3b; stroke-width: 1.3; }
 .wrs-app .buddy .b-p-dark { fill: #334155; }
 .wrs-app .buddy .b-p-wood { fill: #d6a35c; stroke: #92400e; stroke-width: 1; }
@@ -1360,7 +1359,8 @@
 .wrs-app .buddy .ch-canopy { fill: #f59e0b; stroke: #b45309; stroke-width: 1; }
 .wrs-app .buddy .ch-lines { fill: none; stroke: #475569; stroke-width: .8; }
 .wrs-app .buddy .b-yoyo .yo-string { stroke: #475569; stroke-width: 1; }
-.wrs-app .buddy .yo-drop { fill: #38bdf8; stroke: #0369a1; stroke-width: 1; }
+.wrs-app .buddy .yo-body { fill: #ef4444; stroke: #991b1b; stroke-width: 1; }
+.wrs-app .buddy .yo-groove { fill: none; stroke: #fecaca; stroke-width: 1; }
 .wrs-app .buddy .b-rod .rod-pole { stroke: #92400e; stroke-width: 2; }
 .wrs-app .buddy .b-rod .rod-line { stroke: #64748b; stroke-width: .7; }
 .wrs-app .buddy .rod-bobber { fill: #ef4444; stroke: #fff; stroke-width: 1; }
@@ -1594,7 +1594,7 @@
 .wrs-app .buddy.pose-yoyo .b-fore-r { animation: wrs-b-flick .8s ease-in-out infinite; }
 .wrs-app .buddy.pose-yoyo .b-yoyo { display: inline; transform-origin: 46px 60px; animation: wrs-b-yoyo-hang .8s ease-in-out infinite; }
 .wrs-app .buddy.pose-yoyo .yo-string { transform-origin: 46px 60px; animation: wrs-yo-string .8s ease-in-out infinite; }
-.wrs-app .buddy.pose-yoyo .yo-drop { animation: wrs-yo-drop .8s ease-in-out infinite; }
+.wrs-app .buddy.pose-yoyo .yo-toy { animation: wrs-yo-drop .8s ease-in-out infinite; }
 @keyframes wrs-b-flick { 0%, 100% { transform: rotate(-24deg); } 50% { transform: rotate(-6deg); } }
 @keyframes wrs-b-yoyo-hang { 0%, 100% { transform: rotate(62deg); } 50% { transform: rotate(44deg); } }
 @keyframes wrs-yo-string { 0%, 100% { transform: scaleY(.08); } 50% { transform: scaleY(1); } }
@@ -1724,3 +1724,8 @@
 .wrs-app .buddy-chips button:focus-visible { outline: 2px solid var(--lime); outline-offset: 1px; }
 .wrs-app .buddy-bubble.help { border-color: #7dd3fc; background: linear-gradient(180deg, #fff, #f0f9ff); }
 .wrs-app .buddy-bubble.help::after { border-color: #7dd3fc; background: #f0f9ff; }
+
+/* Whatever he's carrying goes away while his hands are busy or flailing. */
+.wrs-app .buddy:is(.pose-yoyo, .pose-jumprope, .pose-fish, .pose-reel, .pose-magic, .pose-pogo, .pose-parachute,
+  .pose-cartwheel, .pose-pole, .pose-tuck, .pose-fall, .pose-splat, .pose-getup, .pose-slip, .pose-trip,
+  .pose-sneeze, .pose-hiccup, .pose-hula) .b-prop { opacity: 0; }
